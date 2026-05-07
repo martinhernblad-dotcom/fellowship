@@ -19,10 +19,12 @@ extension Color {
                   opacity: Double(a) / 255)
     }
 
-    // Warm near-black — like embers in a dark room
-    static let appBackground  = Color(hex: "100E0B")
-    // Warm dark brown for cards
-    static let cardBackground = Color(hex: "1E1A15")
-    // Slightly lighter surface for inputs
-    static let surfaceColor   = Color(hex: "2A231A")
+    // Warm cream — home page background
+    static let homeBackground = Color(hex: "E8D4C0")
+    // Warm near-black — used in inner views/sheets
+    static let appBackground  = Color(hex: "16120F")
+    // Warm dark card surface
+    static let cardBackground = Color(hex: "1E1A14")
+    // Slightly lighter surface for inputs/sheets
+    static let surfaceColor   = Color(hex: "2A2218")
 }

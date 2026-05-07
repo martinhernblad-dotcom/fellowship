@@ -10,12 +10,19 @@ struct AddBlockSheet: View {
     @State private var selectedType = TripBlockType.checklist
     @State private var isSaving     = false
 
+    private var effectiveTitle: String {
+        selectedType == .photos && title.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "Foton" : title.trimmingCharacters(in: .whitespaces)
+    }
+
     private var accent: Color { Color(hex: category.colorHex1) }
 
     private var placeholder: String {
-        selectedType == .checklist
-            ? "T.ex. Packlista, Aktiviteter, Restauranger…"
-            : "T.ex. Flyginformation, Boende, Anteckningar…"
+        switch selectedType {
+        case .checklist: return "T.ex. Packlista, Aktiviteter, Ingredienser…"
+        case .note:      return "T.ex. Flyginformation, Instruktioner, Anteckningar…"
+        case .photos:    return "T.ex. Foton, Inspiration…"
+        }
     }
 
     var body: some View {
@@ -30,6 +37,7 @@ struct AddBlockSheet: View {
                         HStack(spacing: 12) {
                             typeButton(.checklist, icon: "checkmark.square.fill", name: "Checklista")
                             typeButton(.note,      icon: "text.alignleft",        name: "Anteckning")
+                            typeButton(.photos,    icon: "photo.fill",            name: "Foton")
                         }
                     }
 
@@ -68,13 +76,13 @@ struct AddBlockSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(LinearGradient(
-                            colors: title.trimmingCharacters(in: .whitespaces).isEmpty
+                            colors: effectiveTitle.isEmpty
                                 ? [Color.surfaceColor, Color.surfaceColor]
                                 : [Color(hex: category.colorHex1), Color(hex: category.colorHex2)],
                             startPoint: .leading, endPoint: .trailing))
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                    .disabled(effectiveTitle.isEmpty || isSaving)
                 }
                 .padding(20)
             }

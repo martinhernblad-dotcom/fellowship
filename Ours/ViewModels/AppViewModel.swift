@@ -11,6 +11,8 @@ final class AppViewModel: ObservableObject {
     @Published var currentProfile:         UserProfile?
     @Published var blocksByTrip:           [UUID: [TripBlock]]        = [:]
     @Published var checkItemsByBlock:      [UUID: [TripCheckItem]]    = [:]
+    @Published var coupleID:               String?
+    @Published var isSyncing:              Bool                        = false
 
     let cloudKit = CloudKitService()
 
@@ -24,7 +26,13 @@ final class AppViewModel: ObservableObject {
         profiles.first { $0.deviceID != deviceID }
     }
 
-    init() { restoreLocalProfile() }
+    private var noteSaveTasks:  [UUID: Task<Void, Never>] = [:]
+    private var blockSaveTasks: [UUID: Task<Void, Never>] = [:]
+
+    init() {
+        restoreLocalProfile()
+        coupleID = cloudKit.coupleID
+    }
 
     // MARK: - Profile
 
@@ -35,6 +43,14 @@ final class AppViewModel: ObservableObject {
         let idStr = UserDefaults.standard.string(forKey: "profile_id") ?? UUID().uuidString
         let id    = UUID(uuidString: idStr) ?? UUID()
         currentProfile = UserProfile(id: id, name: name, emoji: emoji, deviceID: deviceID)
+    }
+
+    func updateProfileEmoji(_ emoji: String) async {
+        guard var profile = currentProfile else { return }
+        profile.emoji = emoji
+        UserDefaults.standard.set(emoji, forKey: "profile_emoji")
+        currentProfile = profile
+        _ = try? await cloudKit.saveProfile(profile)
     }
 
     func setupProfile(name: String, emoji: String) async {
@@ -49,31 +65,36 @@ final class AppViewModel: ObservableObject {
         profiles = (try? await cloudKit.fetchProfiles()) ?? [profile]
     }
 
-    func setupSync() async {
+    // MARK: - Pairing
+
+    func createCoupleCode() async throws -> String {
+        let code = try await cloudKit.createCoupleCode()
+        coupleID = code
         await cloudKit.setupSubscriptions()
+        if let profile = currentProfile {
+            _ = try? await cloudKit.saveProfile(profile)
+        }
+        return code
     }
 
-    // MARK: - Load
+    func joinCouple(code: String) async throws -> Bool {
+        let joined = try await cloudKit.joinCouple(code: code)
+        if joined {
+            coupleID = cloudKit.coupleID
+            await cloudKit.setupSubscriptions()
+            // Push our own data up (profile + anything we have locally) before pulling
+            await cloudKit.pushAll()
+            await syncFromCloud()
+        }
+        return joined
+    }
 
-    func loadAll() async {
-        try? await cloudKit.seedCategoriesIfNeeded()
+    func syncFromCloud() async {
+        isSyncing = true
+        defer { isSyncing = false }
+        try? await cloudKit.syncAll()
         categories = (try? await cloudKit.fetchCategories()) ?? OursCategory.seed
         profiles   = (try? await cloudKit.fetchProfiles())   ?? []
-    }
-
-    func loadSubcategories(for category: OursCategory) async {
-        subcategoriesByCategory[category.id] =
-            (try? await cloudKit.fetchSubcategories(for: category.id)) ?? []
-    }
-
-    func loadItems(for subcategory: OursSubcategory) async {
-        itemsBySubcategory[subcategory.id] =
-            (try? await cloudKit.fetchItems(for: subcategory.id)) ?? []
-    }
-
-    func refreshAll() async {
-        categories = (try? await cloudKit.fetchCategories()) ?? categories
-        profiles   = (try? await cloudKit.fetchProfiles())   ?? profiles
         for catID in subcategoriesByCategory.keys {
             if let cat = categories.first(where: { $0.id == catID }) {
                 await loadSubcategories(for: cat)
@@ -86,6 +107,34 @@ final class AppViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Load
+
+    func loadAll() async {
+        try? await cloudKit.seedCategoriesIfNeeded()
+        categories = (try? await cloudKit.fetchCategories()) ?? OursCategory.seed
+        profiles   = (try? await cloudKit.fetchProfiles())   ?? []
+        if coupleID != nil {
+            isSyncing = true
+            try? await cloudKit.syncAll()
+            profiles = (try? await cloudKit.fetchProfiles()) ?? profiles
+            isSyncing = false
+        }
+    }
+
+    func loadSubcategories(for category: OursCategory) async {
+        subcategoriesByCategory[category.id] =
+            (try? await cloudKit.fetchSubcategories(for: category.id)) ?? []
+    }
+
+    func loadItems(for subcategory: OursSubcategory) async {
+        itemsBySubcategory[subcategory.id] =
+            (try? await cloudKit.fetchItems(for: subcategory.id)) ?? []
+    }
+
+    func setupSync() async {
+        await cloudKit.setupSubscriptions()
     }
 
     // MARK: - Subcategory CRUD
@@ -103,7 +152,12 @@ final class AppViewModel: ObservableObject {
             .firstIndex(where: { $0.id == subcategory.id }) else { return }
         subcategoriesByCategory[category.id]?[idx].note = note
         guard let updated = subcategoriesByCategory[category.id]?[idx] else { return }
-        Task { try? await cloudKit.saveSubcategory(updated) }
+        noteSaveTasks[subcategory.id]?.cancel()
+        noteSaveTasks[subcategory.id] = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            _ = try? await cloudKit.saveSubcategory(updated)
+        }
     }
 
     func deleteSubcategory(_ sub: OursSubcategory, from category: OursCategory) async {
@@ -114,7 +168,7 @@ final class AppViewModel: ObservableObject {
 
     func renameSubcategory(_ sub: OursSubcategory, to name: String, in category: OursCategory) {
         guard var subs = subcategoriesByCategory[category.id],
-              let idx = subs.firstIndex(where: { $0.id == sub.id }) else { return }
+              let idx  = subs.firstIndex(where: { $0.id == sub.id }) else { return }
         subs[idx].name = name
         subcategoriesByCategory[category.id] = subs
         Task { try? await cloudKit.saveSubcategory(subs[idx]) }
@@ -125,7 +179,7 @@ final class AppViewModel: ObservableObject {
         subs.move(fromOffsets: fromOffsets, toOffset: toOffset)
         for i in subs.indices { subs[i].order = i }
         subcategoriesByCategory[category.id] = subs
-        Task { for sub in subs { try? await cloudKit.saveSubcategory(sub) } }
+        Task { for sub in subs { _ = try? await cloudKit.saveSubcategory(sub) } }
     }
 
     // MARK: - Item CRUD
@@ -157,7 +211,7 @@ final class AppViewModel: ObservableObject {
               let idx = its.firstIndex(where: { $0.id == item.id }) else { return }
         its[idx].title = name
         itemsBySubcategory[sub.id] = its
-        Task { try? await cloudKit.saveItem(its[idx]) }
+        Task { _ = try? await cloudKit.saveItem(its[idx]) }
     }
 
     func moveItem(in subcategory: OursSubcategory, fromOffsets: IndexSet, toOffset: Int) {
@@ -165,7 +219,7 @@ final class AppViewModel: ObservableObject {
         its.move(fromOffsets: fromOffsets, toOffset: toOffset)
         for i in its.indices { its[i].order = i }
         itemsBySubcategory[subcategory.id] = its
-        Task { for item in its { try? await cloudKit.saveItem(item) } }
+        Task { for item in its { _ = try? await cloudKit.saveItem(item) } }
     }
 
     // MARK: - Trip Block CRUD
@@ -175,6 +229,85 @@ final class AppViewModel: ObservableObject {
         blocksByTrip[trip.id] = blocks
         for block in blocks where block.type == .checklist {
             checkItemsByBlock[block.id] = (try? await cloudKit.fetchCheckItems(for: block.id)) ?? []
+        }
+        // Auto-migrate Recept from old flat format to blocks on first open
+        let receptID = UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
+        if blocks.isEmpty, trip.categoryID == receptID {
+            await migrateRecipeToBlocks(trip)
+        }
+    }
+
+    private func migrateRecipeToBlocks(_ trip: OursSubcategory) async {
+        var newBlocks: [TripBlock] = []
+
+        var instrBlock = TripBlock(tripID: trip.id, title: "Instruktioner",
+                                   type: .note, order: 0, text: trip.note)
+        instrBlock = (try? await cloudKit.saveBlock(instrBlock)) ?? instrBlock
+        newBlocks.append(instrBlock)
+
+        var ingrBlock = TripBlock(tripID: trip.id, title: "Ingredienser",
+                                  type: .checklist, order: 1)
+        ingrBlock = (try? await cloudKit.saveBlock(ingrBlock)) ?? ingrBlock
+        newBlocks.append(ingrBlock)
+
+        let existingItems = (try? await cloudKit.fetchItems(for: trip.id)) ?? []
+        var checkItems: [TripCheckItem] = []
+        for (i, item) in existingItems.enumerated() {
+            var ci = TripCheckItem(blockID: ingrBlock.id, title: item.title,
+                                   isChecked: item.isCompleted, order: i)
+            ci = (try? await cloudKit.saveCheckItem(ci)) ?? ci
+            checkItems.append(ci)
+        }
+        checkItemsByBlock[ingrBlock.id] = checkItems
+        blocksByTrip[trip.id] = newBlocks
+    }
+
+    // MARK: - Photo management
+
+    private func photosDirectory() -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("recipe_photos", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    func photoURLs(for block: TripBlock) -> [URL] {
+        guard let data = block.text.data(using: .utf8),
+              let filenames = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        let dir = photosDirectory()
+        return filenames.compactMap { name in
+            let url = dir.appendingPathComponent(name)
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        }
+    }
+
+    func addPhoto(_ data: Data, to block: TripBlock) async {
+        let dir = photosDirectory()
+        let filename = "\(block.id.uuidString)_\(Int(Date().timeIntervalSince1970)).jpg"
+        try? data.write(to: dir.appendingPathComponent(filename))
+        guard let idx = blocksByTrip[block.tripID]?.firstIndex(where: { $0.id == block.id }) else { return }
+        let existing = blocksByTrip[block.tripID]?[idx].text ?? ""
+        var filenames = (try? JSONDecoder().decode([String].self, from: Data(existing.utf8))) ?? []
+        filenames.append(filename)
+        let newText = (try? String(data: JSONEncoder().encode(filenames), encoding: .utf8)) ?? ""
+        blocksByTrip[block.tripID]?[idx].text = newText
+        if let updated = blocksByTrip[block.tripID]?[idx] {
+            _ = try? await cloudKit.saveBlock(updated)
+        }
+    }
+
+    func removePhoto(url: URL, from block: TripBlock) {
+        let filename = url.lastPathComponent
+        try? FileManager.default.removeItem(at: url)
+        guard let idx = blocksByTrip[block.tripID]?.firstIndex(where: { $0.id == block.id }) else { return }
+        let existing = blocksByTrip[block.tripID]?[idx].text ?? ""
+        var filenames = (try? JSONDecoder().decode([String].self, from: Data(existing.utf8))) ?? []
+        filenames.removeAll { $0 == filename }
+        let newText = (try? String(data: JSONEncoder().encode(filenames), encoding: .utf8)) ?? ""
+        blocksByTrip[block.tripID]?[idx].text = newText
+        if let updated = blocksByTrip[block.tripID]?[idx] {
+            Task { _ = try? await cloudKit.saveBlock(updated) }
         }
     }
 
@@ -197,21 +330,31 @@ final class AppViewModel: ObservableObject {
         blocks.move(fromOffsets: fromOffsets, toOffset: toOffset)
         for i in blocks.indices { blocks[i].order = i }
         blocksByTrip[tripID] = blocks
-        Task { for b in blocks { try? await cloudKit.saveBlock(b) } }
+        Task { for b in blocks { _ = try? await cloudKit.saveBlock(b) } }
     }
 
     func updateBlockTitle(_ title: String, for block: TripBlock) {
         guard let idx = blocksByTrip[block.tripID]?.firstIndex(where: { $0.id == block.id }) else { return }
         blocksByTrip[block.tripID]?[idx].title = title
         guard let updated = blocksByTrip[block.tripID]?[idx] else { return }
-        Task { try? await cloudKit.saveBlock(updated) }
+        blockSaveTasks[block.id]?.cancel()
+        blockSaveTasks[block.id] = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            _ = try? await cloudKit.saveBlock(updated)
+        }
     }
 
     func updateBlockText(_ text: String, for block: TripBlock) {
         guard let idx = blocksByTrip[block.tripID]?.firstIndex(where: { $0.id == block.id }) else { return }
         blocksByTrip[block.tripID]?[idx].text = text
         guard let updated = blocksByTrip[block.tripID]?[idx] else { return }
-        Task { try? await cloudKit.saveBlock(updated) }
+        blockSaveTasks[block.id]?.cancel()
+        blockSaveTasks[block.id] = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            _ = try? await cloudKit.saveBlock(updated)
+        }
     }
 
     // MARK: - Trip Check Item CRUD

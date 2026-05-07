@@ -9,6 +9,8 @@ struct SubcategoryView: View {
     @State private var noteText: String = ""
     @State private var itemToRename: ListItem? = nil
     @State private var renameText = ""
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<UUID> = []
 
     private var items: [ListItem] {
         viewModel.itemsBySubcategory[subcategory.id] ?? []
@@ -30,22 +32,64 @@ struct SubcategoryView: View {
         }
         .navigationTitle(subcategory.name)
         .navigationBarTitleDisplayMode(.large)
+        .fontDesign(.rounded)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
                     if !items.isEmpty {
-                        Button {
-                            withAnimation { editMode = editMode == .active ? .inactive : .active }
-                        } label: {
-                            Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white.opacity(editMode == .active ? 1 : 0.7))
+                        if isSelecting {
+                            Button {
+                                withAnimation {
+                                    isSelecting = false
+                                    selectedIDs = []
+                                }
+                            } label: {
+                                Text("Avbryt")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                        } else {
+                            Button {
+                                withAnimation { editMode = editMode == .active ? .inactive : .active }
+                            } label: {
+                                Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.white.opacity(editMode == .active ? 1 : 0.7))
+                            }
+                            Button {
+                                withAnimation { isSelecting = true }
+                            } label: {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
                         }
                     }
-                    Button { showAddItem = true } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white)
+                    if !isSelecting {
+                        Button { showAddItem = true } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+            if isSelecting && !selectedIDs.isEmpty {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(role: .destructive) {
+                        let toDelete = items.filter { selectedIDs.contains($0.id) }
+                        Task {
+                            for item in toDelete {
+                                await viewModel.deleteItem(item, from: subcategory)
+                            }
+                        }
+                        withAnimation {
+                            isSelecting = false
+                            selectedIDs = []
+                        }
+                    } label: {
+                        Label("Ta bort (\(selectedIDs.count))", systemImage: "trash")
+                            .foregroundColor(.red)
                     }
                 }
             }
@@ -98,23 +142,50 @@ struct SubcategoryView: View {
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 } else {
                     ForEach(items) { item in
-                        ListItemRow(item: item, category: category) {
-                            Task { await viewModel.toggleItem(item, in: subcategory) }
+                        HStack(spacing: 12) {
+                            if isSelecting {
+                                Image(systemName: selectedIDs.contains(item.id)
+                                      ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(selectedIDs.contains(item.id)
+                                                     ? Color(hex: category.colorHex1) : .white.opacity(0.3))
+                                    .onTapGesture {
+                                        withAnimation {
+                                            if selectedIDs.contains(item.id) {
+                                                selectedIDs.remove(item.id)
+                                            } else {
+                                                selectedIDs.insert(item.id)
+                                            }
+                                        }
+                                    }
+                            }
+                            ListItemRow(item: item, category: category) {
+                                if isSelecting {
+                                    withAnimation {
+                                        if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
+                                        else { selectedIDs.insert(item.id) }
+                                    }
+                                } else {
+                                    Task { await viewModel.toggleItem(item, in: subcategory) }
+                                }
+                            }
                         }
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .contextMenu {
-                            Button {
-                                renameText = item.title
-                                itemToRename = item
-                            } label: {
-                                Label("Ändra", systemImage: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                Task { await viewModel.deleteItem(item, from: subcategory) }
-                            } label: {
-                                Label("Ta bort", systemImage: "trash")
+                            if !isSelecting {
+                                Button {
+                                    renameText = item.title
+                                    itemToRename = item
+                                } label: {
+                                    Label("Ändra", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteItem(item, from: subcategory) }
+                                } label: {
+                                    Label("Ta bort", systemImage: "trash")
+                                }
                             }
                         }
                     }
@@ -142,7 +213,7 @@ struct SubcategoryView: View {
                 .foregroundColor(.white)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 110)
-                .onChange(of: noteText) { newVal in
+                .onChange(of: noteText) { _, newVal in
                     viewModel.updateNote(newVal, for: subcategory, in: category)
                 }
 

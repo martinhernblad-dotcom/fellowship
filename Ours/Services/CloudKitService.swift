@@ -1,35 +1,121 @@
+import FirebaseFirestore
 import Foundation
+import UIKit
 
-// Local JSON persistence — same interface as the CloudKit version.
-// Swap this file for a CloudKit or Firebase implementation once you have
-// a paid Apple Developer account or a Firebase project set up.
+// MARK: - CloudKitService (backed by Firestore)
+// Named CloudKitService to keep the rest of the app unchanged.
 
+@MainActor
 final class CloudKitService {
 
     private let store = LocalStore.shared
+    private var db: Firestore { Firestore.firestore() }
 
-    // MARK: - Account (stub — always "available" locally)
+    var coupleID: String? {
+        get { UserDefaults.standard.string(forKey: "fellowship_couple_id") }
+        set { UserDefaults.standard.set(newValue, forKey: "fellowship_couple_id") }
+    }
+
+    // MARK: - Account (no-op for Firebase)
     func accountStatus() async throws -> Int { 1 }
+
+    // MARK: - Pairing
+
+    func createCoupleCode() async throws -> String {
+        let chars = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        let code = String((0..<6).map { _ in chars.randomElement()! })
+        try await db.collection("pairings").document(code).setData([
+            "createdBy": UIDevice.current.identifierForVendor?.uuidString ?? "unknown",
+            "createdAt": FieldValue.serverTimestamp()
+        ])
+        coupleID = code
+        await pushAll()
+        return code
+    }
+
+    func joinCouple(code: String) async throws -> Bool {
+        let key = code.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let doc = try await db.collection("pairings").document(key).getDocument()
+        guard doc.exists else { return false }
+        coupleID = key
+        return true
+    }
+
+    // MARK: - Push all local data to Firestore
+
+    func pushAll() async {
+        guard let cid = coupleID else { return }
+        let batch = db.batch()
+        for sub  in store.subcategories  { batch.setData(sub.toFirestore(),  forDocument: firestoreRef("subcategories",  id: sub.id.uuidString,  coupleID: cid)) }
+        for item in store.items          { batch.setData(item.toFirestore(), forDocument: firestoreRef("items",          id: item.id.uuidString, coupleID: cid)) }
+        for blk  in store.tripBlocks     { batch.setData(blk.toFirestore(),  forDocument: firestoreRef("tripBlocks",     id: blk.id.uuidString,  coupleID: cid)) }
+        for ci   in store.tripCheckItems { batch.setData(ci.toFirestore(),   forDocument: firestoreRef("tripCheckItems", id: ci.id.uuidString,   coupleID: cid)) }
+        for pr   in store.profiles       { batch.setData(pr.toFirestore(),   forDocument: firestoreRef("profiles",       id: pr.deviceID,        coupleID: cid)) }
+        try? await batch.commit()
+    }
+
+    // MARK: - Full sync (pull from Firestore, merge into local)
+
+    func syncAll() async throws {
+        guard let cid = coupleID else { return }
+        async let scs  = firestoreFetchAll("subcategories",  coupleID: cid)
+        async let its  = firestoreFetchAll("items",          coupleID: cid)
+        async let bls  = firestoreFetchAll("tripBlocks",     coupleID: cid)
+        async let cis  = firestoreFetchAll("tripCheckItems", coupleID: cid)
+        async let prs  = firestoreFetchAll("profiles",       coupleID: cid)
+        async let dels = firestoreFetchAll("deletions",      coupleID: cid)
+        let (scDocs, itDocs, blDocs, ciDocs, prDocs, delDocs) = try await (scs, its, bls, cis, prs, dels)
+        // Apply deletions first so re-added items aren't immediately removed
+        delDocs.forEach { d in
+            if let col = d["collection"] as? String, let id = d["id"] as? String {
+                store.applyDeletion(collection: col, id: id)
+            }
+        }
+        scDocs.compactMap(OursSubcategory.init(fs:)).forEach { store.merge($0) }
+        itDocs.compactMap(ListItem.init(fs:)).forEach        { store.merge($0) }
+        blDocs.compactMap(TripBlock.init(fs:)).forEach       { store.merge($0) }
+        ciDocs.compactMap(TripCheckItem.init(fs:)).forEach   { store.merge($0) }
+        prDocs.compactMap(UserProfile.init(fs:)).forEach     { store.merge($0) }
+        store.save()
+    }
+
+    private func firestoreFetchAll(_ collection: String, coupleID: String) async throws -> [[String: Any]] {
+        let snap = try await db.collection("couples").document(coupleID).collection(collection).getDocuments()
+        return snap.documents.map { $0.data() }
+    }
+
+    private func firestoreRef(_ collection: String, id: String, coupleID: String) -> DocumentReference {
+        db.collection("couples").document(coupleID).collection(collection).document(id)
+    }
+
+    func setupSubscriptions() async {
+        // Firestore has real-time listeners; for background sync we rely on
+        // pull-on-foreground in OursApp. Full real-time can be added later.
+    }
 
     // MARK: - Categories
 
-    func fetchCategories() async throws -> [OursCategory] {
-        store.categories
-    }
+    func fetchCategories() async throws -> [OursCategory] { store.categories }
 
     func seedCategoriesIfNeeded() async throws {
         if store.categories.isEmpty {
             store.categories = OursCategory.seed
             store.save()
+        } else {
+            var changed = false
+            for i in store.categories.indices {
+                if store.categories[i].iconName == "fork.knife",
+                   store.categories[i].id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")! {
+                    store.categories[i].iconName = "pot.fill"
+                    changed = true
+                }
+            }
+            if changed { store.save() }
         }
     }
 
     func saveCategory(_ category: OursCategory) async throws -> OursCategory {
-        if let idx = store.categories.firstIndex(where: { $0.id == category.id }) {
-            store.categories[idx] = category
-        } else {
-            store.categories.append(category)
-        }
+        store.merge(category)
         store.save()
         return category
     }
@@ -37,50 +123,45 @@ final class CloudKitService {
     // MARK: - Subcategories
 
     func fetchSubcategories(for categoryID: UUID) async throws -> [OursSubcategory] {
-        store.subcategories.filter { $0.categoryID == categoryID }
-            .sorted { $0.order < $1.order }
+        store.subcategories.filter { $0.categoryID == categoryID }.sorted { $0.order < $1.order }
     }
 
     func saveSubcategory(_ sub: OursSubcategory) async throws -> OursSubcategory {
-        if let idx = store.subcategories.firstIndex(where: { $0.id == sub.id }) {
-            store.subcategories[idx] = sub
-        } else {
-            store.subcategories.append(sub)
-        }
+        store.merge(sub)
         store.save()
+        fsPush("subcategories", id: sub.id.uuidString, data: sub.toFirestore())
         return sub
     }
 
     func deleteSubcategory(_ sub: OursSubcategory) async throws {
-        store.subcategories.removeAll { $0.id == sub.id }
-        store.items.removeAll { $0.subcategoryID == sub.id }
-        // Also clean up trip blocks when a trip is deleted
         let blockIDs = store.tripBlocks.filter { $0.tripID == sub.id }.map(\.id)
-        store.tripBlocks.removeAll { $0.tripID == sub.id }
-        store.tripCheckItems.removeAll { blockIDs.contains($0.blockID) }
+        store.subcategories.removeAll   { $0.id == sub.id }
+        store.items.removeAll           { $0.subcategoryID == sub.id }
+        store.tripBlocks.removeAll      { $0.tripID == sub.id }
+        store.tripCheckItems.removeAll  { blockIDs.contains($0.blockID) }
         store.save()
+        fsDelete("subcategories", id: sub.id.uuidString)
+        fsTombstone("subcategories", id: sub.id.uuidString)
     }
 
-    // MARK: - List Items
+    // MARK: - Items
 
     func fetchItems(for subcategoryID: UUID) async throws -> [ListItem] {
-        store.items.filter { $0.subcategoryID == subcategoryID }
-            .sorted { $0.order < $1.order }
+        store.items.filter { $0.subcategoryID == subcategoryID }.sorted { $0.order < $1.order }
     }
 
     func saveItem(_ item: ListItem) async throws -> ListItem {
-        if let idx = store.items.firstIndex(where: { $0.id == item.id }) {
-            store.items[idx] = item
-        } else {
-            store.items.append(item)
-        }
+        store.merge(item)
         store.save()
+        fsPush("items", id: item.id.uuidString, data: item.toFirestore())
         return item
     }
 
     func deleteItem(_ item: ListItem) async throws {
         store.items.removeAll { $0.id == item.id }
         store.save()
+        fsDelete("items", id: item.id.uuidString)
+        fsTombstone("items", id: item.id.uuidString)
     }
 
     // MARK: - Trip Blocks
@@ -90,19 +171,18 @@ final class CloudKitService {
     }
 
     func saveBlock(_ block: TripBlock) async throws -> TripBlock {
-        if let idx = store.tripBlocks.firstIndex(where: { $0.id == block.id }) {
-            store.tripBlocks[idx] = block
-        } else {
-            store.tripBlocks.append(block)
-        }
+        store.merge(block)
         store.save()
+        fsPush("tripBlocks", id: block.id.uuidString, data: block.toFirestore())
         return block
     }
 
     func deleteBlock(_ block: TripBlock) async throws {
-        store.tripBlocks.removeAll { $0.id == block.id }
+        store.tripBlocks.removeAll     { $0.id == block.id }
         store.tripCheckItems.removeAll { $0.blockID == block.id }
         store.save()
+        fsDelete("tripBlocks", id: block.id.uuidString)
+        fsTombstone("tripBlocks", id: block.id.uuidString)
     }
 
     // MARK: - Trip Check Items
@@ -112,38 +192,139 @@ final class CloudKitService {
     }
 
     func saveCheckItem(_ item: TripCheckItem) async throws -> TripCheckItem {
-        if let idx = store.tripCheckItems.firstIndex(where: { $0.id == item.id }) {
-            store.tripCheckItems[idx] = item
-        } else {
-            store.tripCheckItems.append(item)
-        }
+        store.merge(item)
         store.save()
+        fsPush("tripCheckItems", id: item.id.uuidString, data: item.toFirestore())
         return item
     }
 
     func deleteCheckItem(_ item: TripCheckItem) async throws {
         store.tripCheckItems.removeAll { $0.id == item.id }
         store.save()
+        fsDelete("tripCheckItems", id: item.id.uuidString)
+        fsTombstone("tripCheckItems", id: item.id.uuidString)
     }
 
     // MARK: - Profiles
 
-    func fetchProfiles() async throws -> [UserProfile] {
-        store.profiles
-    }
+    func fetchProfiles() async throws -> [UserProfile] { store.profiles }
 
     func saveProfile(_ profile: UserProfile) async throws -> UserProfile {
-        if let idx = store.profiles.firstIndex(where: { $0.deviceID == profile.deviceID }) {
-            store.profiles[idx] = profile
-        } else {
-            store.profiles.append(profile)
-        }
+        store.merge(profile)
         store.save()
+        fsPush("profiles", id: profile.deviceID, data: profile.toFirestore())
         return profile
     }
 
-    // MARK: - Sync (no-op locally)
-    func setupSubscriptions() async {}
+    // MARK: - Firestore helpers
+
+    private func fsPush(_ collection: String, id: String, data: [String: Any]) {
+        guard let cid = coupleID else { return }
+        Task { try? await firestoreRef(collection, id: id, coupleID: cid).setData(data) }
+    }
+
+    private func fsDelete(_ collection: String, id: String) {
+        guard let cid = coupleID else { return }
+        Task { try? await firestoreRef(collection, id: id, coupleID: cid).delete() }
+    }
+
+    private func fsTombstone(_ collection: String, id: String) {
+        guard let cid = coupleID else { return }
+        let docID = "\(collection)_\(id)"
+        let data: [String: Any] = ["collection": collection, "id": id,
+                                   "deletedAt": FieldValue.serverTimestamp()]
+        Task {
+            try? await db.collection("couples").document(cid)
+                .collection("deletions").document(docID).setData(data)
+        }
+    }
+}
+
+// MARK: - Firestore mapping
+
+private extension OursSubcategory {
+    func toFirestore() -> [String: Any] {[
+        "id": id.uuidString, "categoryID": categoryID.uuidString,
+        "name": name, "iconName": iconName, "order": order, "note": note
+    ]}
+    init?(fs d: [String: Any]) {
+        guard let idStr  = d["id"]         as? String, let id     = UUID(uuidString: idStr),
+              let catStr = d["categoryID"] as? String, let catID  = UUID(uuidString: catStr)
+        else { return nil }
+        self.id = id; self.categoryID = catID
+        self.name     = d["name"]     as? String ?? ""
+        self.iconName = d["iconName"] as? String ?? "folder.fill"
+        self.order    = d["order"]    as? Int    ?? 0
+        self.note     = d["note"]     as? String ?? ""
+    }
+}
+
+private extension ListItem {
+    func toFirestore() -> [String: Any] {[
+        "id": id.uuidString, "subcategoryID": subcategoryID.uuidString,
+        "title": title, "notes": notes, "url": url,
+        "isCompleted": isCompleted, "order": order,
+        "createdAt": createdAt.timeIntervalSince1970
+    ]}
+    init?(fs d: [String: Any]) {
+        guard let idStr  = d["id"]            as? String, let id    = UUID(uuidString: idStr),
+              let subStr = d["subcategoryID"] as? String, let subID = UUID(uuidString: subStr)
+        else { return nil }
+        self.id = id; self.subcategoryID = subID
+        self.title       = d["title"]       as? String ?? ""
+        self.notes       = d["notes"]       as? String ?? ""
+        self.url         = d["url"]         as? String ?? ""
+        self.isCompleted = d["isCompleted"] as? Bool   ?? false
+        self.order       = d["order"]       as? Int    ?? 0
+        self.createdAt   = Date(timeIntervalSince1970: d["createdAt"] as? Double ?? 0)
+    }
+}
+
+private extension TripBlock {
+    func toFirestore() -> [String: Any] {[
+        "id": id.uuidString, "tripID": tripID.uuidString,
+        "title": title, "type": type.rawValue, "order": order, "text": text
+    ]}
+    init?(fs d: [String: Any]) {
+        guard let idStr   = d["id"]     as? String, let id     = UUID(uuidString: idStr),
+              let tripStr = d["tripID"] as? String, let tripID = UUID(uuidString: tripStr),
+              let typeStr = d["type"]   as? String, let type   = TripBlockType(rawValue: typeStr)
+        else { return nil }
+        self.id = id; self.tripID = tripID; self.type = type
+        self.title = d["title"] as? String ?? ""
+        self.order = d["order"] as? Int    ?? 0
+        self.text  = d["text"]  as? String ?? ""
+    }
+}
+
+private extension TripCheckItem {
+    func toFirestore() -> [String: Any] {[
+        "id": id.uuidString, "blockID": blockID.uuidString,
+        "title": title, "isChecked": isChecked, "order": order
+    ]}
+    init?(fs d: [String: Any]) {
+        guard let idStr  = d["id"]      as? String, let id      = UUID(uuidString: idStr),
+              let blkStr = d["blockID"] as? String, let blockID = UUID(uuidString: blkStr)
+        else { return nil }
+        self.id = id; self.blockID = blockID
+        self.title     = d["title"]     as? String ?? ""
+        self.isChecked = d["isChecked"] as? Bool   ?? false
+        self.order     = d["order"]     as? Int    ?? 0
+    }
+}
+
+private extension UserProfile {
+    func toFirestore() -> [String: Any] {[
+        "id": id.uuidString, "deviceID": deviceID, "name": name, "emoji": emoji
+    ]}
+    init?(fs d: [String: Any]) {
+        guard let idStr  = d["id"]       as? String, let id    = UUID(uuidString: idStr),
+              let devID  = d["deviceID"] as? String
+        else { return nil }
+        self.id = id; self.deviceID = devID
+        self.name  = d["name"]  as? String ?? ""
+        self.emoji = d["emoji"] as? String ?? "🙂"
+    }
 }
 
 // MARK: - LocalStore
@@ -160,17 +341,64 @@ final class LocalStore {
 
     private let url: URL = {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return dir.appendingPathComponent("fellowship_store_v2.json")
+        let file = dir.appendingPathComponent("fellowship_store_v2.json")
+        try? (file as NSURL).setResourceValue(false, forKey: .isExcludedFromBackupKey)
+        return file
     }()
 
     private init() { load() }
+
+    func merge(_ cat: OursCategory) {
+        if let i = categories.firstIndex(where: { $0.id == cat.id }) { categories[i] = cat }
+        else { categories.append(cat) }
+    }
+    func merge(_ sub: OursSubcategory) {
+        if let i = subcategories.firstIndex(where: { $0.id == sub.id }) { subcategories[i] = sub }
+        else { subcategories.append(sub) }
+    }
+    func merge(_ item: ListItem) {
+        if let i = items.firstIndex(where: { $0.id == item.id }) { items[i] = item }
+        else { items.append(item) }
+    }
+    func merge(_ block: TripBlock) {
+        if let i = tripBlocks.firstIndex(where: { $0.id == block.id }) { tripBlocks[i] = block }
+        else { tripBlocks.append(block) }
+    }
+    func merge(_ ci: TripCheckItem) {
+        if let i = tripCheckItems.firstIndex(where: { $0.id == ci.id }) { tripCheckItems[i] = ci }
+        else { tripCheckItems.append(ci) }
+    }
+    func merge(_ profile: UserProfile) {
+        if let i = profiles.firstIndex(where: { $0.deviceID == profile.deviceID }) { profiles[i] = profile }
+        else { profiles.append(profile) }
+    }
+
+    func applyDeletion(collection: String, id: String) {
+        guard let uuid = UUID(uuidString: id) else { return }
+        switch collection {
+        case "subcategories":
+            let blockIDs = tripBlocks.filter { $0.tripID == uuid }.map(\.id)
+            subcategories.removeAll  { $0.id == uuid }
+            items.removeAll          { $0.subcategoryID == uuid }
+            tripBlocks.removeAll     { $0.tripID == uuid }
+            tripCheckItems.removeAll { blockIDs.contains($0.blockID) }
+        case "items":
+            items.removeAll { $0.id == uuid }
+        case "tripBlocks":
+            tripCheckItems.removeAll { $0.blockID == uuid }
+            tripBlocks.removeAll     { $0.id == uuid }
+        case "tripCheckItems":
+            tripCheckItems.removeAll { $0.id == uuid }
+        default: break
+        }
+    }
 
     func save() {
         let payload = StorePayload(categories: categories, subcategories: subcategories,
                                    items: items, profiles: profiles,
                                    tripBlocks: tripBlocks, tripCheckItems: tripCheckItems)
         if let data = try? JSONEncoder().encode(payload) {
-            try? data.write(to: url)
+            try? data.write(to: url, options: .atomic)
         }
     }
 
@@ -186,6 +414,8 @@ final class LocalStore {
         tripCheckItems = payload.tripCheckItems
     }
 }
+
+// MARK: - StorePayload
 
 private struct StorePayload: Codable {
     var categories:     [OursCategory]

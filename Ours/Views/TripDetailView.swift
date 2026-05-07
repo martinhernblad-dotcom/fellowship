@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - Trip Detail (block-based layout for Resor)
 
@@ -55,6 +56,7 @@ struct TripDetailView: View {
                     switch block.type {
                     case .note:       NoteBlockCard(block: block, category: category)
                     case .checklist:  ChecklistBlockCard(block: block, category: category)
+                    case .photos:     PhotoBlockCard(block: block, category: category)
                     }
                 }
                 .environmentObject(viewModel)
@@ -71,15 +73,21 @@ struct TripDetailView: View {
 
     // MARK: - Empty state
 
+    private var isRecept: Bool {
+        category.id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
+    }
+
     private var emptyState: some View {
         VStack(spacing: 18) {
             Image(systemName: "plus.square.dashed")
                 .font(.system(size: 52))
                 .foregroundColor(Color(hex: category.colorHex1).opacity(0.4))
-            Text("Starta din resa")
+            Text(isRecept ? "Bygg ditt recept" : "Starta din resa")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white.opacity(0.8))
-            Text("Lägg till checklistor och anteckningar\nsom flyginformation, boende och mer.")
+            Text(isRecept
+                 ? "Lägg till ingredienser,\ninstruktioner och foton."
+                 : "Lägg till checklistor och anteckningar\nsom flyginformation, boende och mer.")
                 .font(.body)
                 .foregroundColor(.white.opacity(0.35))
                 .multilineTextAlignment(.center)
@@ -126,7 +134,7 @@ struct NoteBlockCard: View {
                           prompt: Text("Rubrik").foregroundColor(.white.opacity(0.3)))
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
-                    .onChange(of: title) { viewModel.updateBlockTitle($0, for: block) }
+                    .onChange(of: title) { _, v in viewModel.updateBlockTitle(v, for: block) }
                 Spacer()
                 blockMenu
             }
@@ -143,7 +151,7 @@ struct NoteBlockCard: View {
                     .foregroundColor(.white.opacity(0.85))
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 72)
-                    .onChange(of: text) { viewModel.updateBlockText($0, for: block) }
+                    .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
                 if text.isEmpty {
                     Text("Skriv anteckning…")
                         .font(.system(size: 14, design: .rounded))
@@ -203,7 +211,7 @@ struct ChecklistBlockCard: View {
                           prompt: Text("Rubrik").foregroundColor(.white.opacity(0.3)))
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
-                    .onChange(of: title) { viewModel.updateBlockTitle($0, for: block) }
+                    .onChange(of: title) { _, v in viewModel.updateBlockTitle(v, for: block) }
                 Spacer()
                 // Progress
                 let done = items.filter(\.isChecked).count
@@ -290,6 +298,159 @@ struct ChecklistBlockCard: View {
         guard !t.isEmpty else { return }
         newItemText = ""
         Task { await viewModel.addCheckItem(title: t, to: block) }
+    }
+
+    private var blockMenu: some View {
+        Menu {
+            Button(role: .destructive) {
+                Task { await viewModel.deleteBlock(block) }
+            } label: { Label("Ta bort sektion", systemImage: "trash") }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13))
+                .foregroundColor(.white.opacity(0.28))
+                .padding(8)
+        }
+    }
+}
+
+// MARK: - Photo Block Card
+
+struct PhotoBlockCard: View {
+    let block: TripBlock
+    let category: OursCategory
+    @EnvironmentObject private var viewModel: AppViewModel
+    @State private var title: String
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var isLoading = false
+    @State private var fullScreenURL: URL? = nil
+    @State private var showFullScreen = false
+
+    init(block: TripBlock, category: OursCategory) {
+        self.block = block; self.category = category
+        _title = State(initialValue: block.title)
+    }
+
+    private var photoURLs: [URL] { viewModel.photoURLs(for: block) }
+    private var accent: Color { Color(hex: category.colorHex1) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(accent.opacity(0.8))
+                TextField("", text: $title,
+                          prompt: Text("Rubrik").foregroundColor(.white.opacity(0.3)))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .onChange(of: title) { _, v in viewModel.updateBlockTitle(v, for: block) }
+                Spacer()
+                blockMenu
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 13)
+            .padding(.bottom, 10)
+
+            if !photoURLs.isEmpty {
+                Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 14)
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3),
+                    spacing: 4
+                ) {
+                    ForEach(photoURLs, id: \.absoluteString) { url in
+                        ZStack(alignment: .topTrailing) {
+                            Button {
+                                fullScreenURL = url
+                                showFullScreen = true
+                            } label: {
+                                Group {
+                                    if let uiImg = UIImage(contentsOfFile: url.path) {
+                                        Image(uiImage: uiImg)
+                                            .resizable()
+                                            .aspectRatio(1, contentMode: .fill)
+                                    } else {
+                                        Color.surfaceColor
+                                    }
+                                }
+                                .frame(height: 90)
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                viewModel.removePhoto(url: url, from: block)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.white, Color.black.opacity(0.35))
+                                    .padding(4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+            }
+
+            Divider().background(Color.white.opacity(0.05)).padding(.horizontal, 14)
+
+            PhotosPicker(selection: $pickerItems, maxSelectionCount: 10,
+                         matching: .images, photoLibrary: .shared()) {
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView().scaleEffect(0.75).tint(accent).frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                            .foregroundColor(accent.opacity(0.6))
+                    }
+                    Text("Lägg till foto")
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .onChange(of: pickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                isLoading = true
+                Task {
+                    for item in items {
+                        if let data = try? await item.loadTransferable(type: Data.self) {
+                            await viewModel.addPhoto(data, to: block)
+                        }
+                    }
+                    pickerItems = []
+                    isLoading = false
+                }
+            }
+        }
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .fullScreenCover(isPresented: $showFullScreen) {
+            ZStack(alignment: .topTrailing) {
+                Color.black.ignoresSafeArea()
+                if let url = fullScreenURL,
+                   let uiImg = UIImage(contentsOfFile: url.path) {
+                    Image(uiImage: uiImg)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                Button { showFullScreen = false } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.white, Color.black.opacity(0.5))
+                        .padding(20)
+                }
+            }
+            .onTapGesture { showFullScreen = false }
+        }
     }
 
     private var blockMenu: some View {

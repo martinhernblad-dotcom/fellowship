@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates minimalist white-on-transparent artwork for each Fellowship category."""
+"""Fellowship category artwork — clean flat silhouettes, light fill on transparent bg."""
 
 import math, os
 from PIL import Image, ImageDraw, ImageFilter
@@ -17,186 +17,180 @@ def save(img, name):
     folder = os.path.join(OUT, f"{name}.imageset")
     os.makedirs(folder, exist_ok=True)
     img.save(os.path.join(folder, f"{name}.png"))
-    contents = f'''{{\n  "images":[{{"filename":"{name}.png","idiom":"universal","scale":"1x"}}],\n  "info":{{"author":"xcode","version":1}}\n}}\n'''
+    contents = f'{{\n  "images":[{{"filename":"{name}.png","idiom":"universal","scale":"1x"}}],\n  "info":{{"author":"xcode","version":1}}\n}}\n'
     with open(os.path.join(folder, "Contents.json"), "w") as f:
         f.write(contents)
     print(f"  {name} ✓")
 
-def soft(img, r=2):
+def soft(img, r=1.2):
     return img.filter(ImageFilter.GaussianBlur(r))
 
-WHITE = (255, 255, 255, 220)
-DIM   = (255, 255, 255, 140)
+# Shared light fill — semi-transparent white/cream, reads over any card colour
+FILL  = (255, 248, 240, 210)
+FILL2 = (255, 248, 240, 140)  # lighter secondary shapes
 
-# ── 1. Shopping bag ──────────────────────────────────────────────
-def make_shopping():
-    img = new_canvas(); d = ImageDraw.Draw(img)
-
-    # Bag body — rounded rect, wider at base
-    bx, by, bw, bh = 136, 200, 240, 260
-    d.rounded_rectangle([bx, by, bx+bw, by+bh], radius=28, fill=WHITE)
-
-    # Handle cutout highlight — two arcs as filled ellipses overlapping
-    h_cx = MID
-    for ox in (-56, 56):
-        arc_box = [h_cx + ox - 44, by - 90, h_cx + ox + 44, by + 30]
-        # draw thick arc by nested ellipses
-        d.ellipse(arc_box, outline=WHITE, width=18)
-
-    # Small heart on bag
-    hx, hy, hs = MID, by + bh//2 - 10, 38
+def heart_pts(cx, cy, size):
     pts = []
     for deg in range(360):
         t = math.radians(deg)
-        x = 16 * math.sin(t)**3
+        x = 16 * math.sin(t) ** 3
         y = -(13*math.cos(t) - 5*math.cos(2*t) - 2*math.cos(3*t) - math.cos(4*t))
-        pts.append((hx + x*hs/16, hy + y*hs/16))
-    d2 = ImageDraw.Draw(img)
-    # Draw heart as dark cutout so it shows against white bag
-    dark_heart = Image.new("RGBA", (SIZE, SIZE), (0,0,0,0))
-    dh = ImageDraw.Draw(dark_heart)
-    dh.polygon(pts, fill=(180, 90, 40, 200))
-    img = Image.alpha_composite(img, dark_heart)
+        pts.append((cx + x*size/16, cy + y*size/16))
+    return pts
+
+# ── 1. Shopping bag ──────────────────────────────────────────────
+def make_shopping():
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
+
+    # Bag body
+    d.rounded_rectangle([164, 210, 348, 390], radius=22, fill=FILL)
+
+    # Handles (two arcs drawn as thick strokes)
+    for cx in (MID - 46, MID + 46):
+        d.arc([cx - 34, 148, cx + 34, 230], start=200, end=340, fill=FILL, width=22)
+
+    # Heart
+    heart = new_canvas(); dh = ImageDraw.Draw(heart)
+    dh.polygon(heart_pts(MID, 304, 44), fill=(255, 220, 200, 160))
+    img = Image.alpha_composite(img, heart)
+
     return soft(img)
 
-# ── 2. Mountains (Resor) ─────────────────────────────────────────
+# ── 2. Mountains + moon ──────────────────────────────────────────
 def make_resor():
-    img = new_canvas(); d = ImageDraw.Draw(img)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
 
-    # Three mountain peaks — clean triangles, no snow caps (snow caps looked like trees)
-    peaks = [
-        [(MID, 90),      (MID-175, 390), (MID+175, 390)],  # centre, tallest
-        [(MID-130, 185), (MID-290, 390), (MID+10,  390)],  # left
-        [(MID+145, 200), (MID-10,  390), (MID+295, 390)],  # right
-    ]
-    alphas = [220, 130, 130]
-    for pts, a in zip(peaks, alphas):
-        d.polygon(pts, fill=(255,255,255,a))
+    BY = 392  # base y
+
+    # Back peaks (lighter) — drawn first
+    d.polygon([(130, 205), (10,  BY), (298, BY)], fill=FILL2)
+    d.polygon([(384, 215), (212, BY), (500, BY)], fill=FILL2)
+
+    # Main centre peak — wide base so it reads as mountain not tree
+    d.polygon([(MID, 142), (44, BY), (468, BY)], fill=FILL)
 
     # Moon
-    d.ellipse([MID+140, 60, MID+220, 140], fill=(255,255,255,200))
-    # Moon crescent cutout
-    d.ellipse([MID+155, 50, MID+230, 130], fill=(0,0,0,0))
+    d.ellipse([MID + 128, 78, MID + 184, 134], fill=FILL)
 
     return soft(img)
 
-# ── 3. Coins (Ekonomi) ──────────────────────────────────────────
+# ── 3. Credit card ───────────────────────────────────────────────
 def make_ekonomi():
-    img = new_canvas(); d = ImageDraw.Draw(img)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
 
-    coins = 4
-    coin_w, coin_h = 280, 60
-    gap   = 52
-    start_y = MID - (coins * gap) // 2 + 20
+    # Card body
+    d.rounded_rectangle([110, 175, 400, 337], radius=22, fill=FILL)
 
-    for i in range(coins):
-        y = start_y + i * gap
-        alpha = 180 + i * 12
-        # Coin face
-        d.ellipse([MID - coin_w//2, y, MID + coin_w//2, y + coin_h],
-                  fill=(255,255,255,alpha))
-        # Shine line
-        d.ellipse([MID - coin_w//2 + 20, y + 10, MID - coin_w//2 + 80, y + 26],
-                  fill=(255,255,255,80))
+    # Magnetic stripe
+    d.rectangle([110, 215, 400, 258], fill=(255, 248, 240, 100))
 
-    # Sparkle on top coin
-    sy = start_y - 28
-    for angle in range(0, 360, 45):
-        t = math.radians(angle)
-        x1, y1 = MID + math.cos(t)*18, sy + math.sin(t)*18
-        x2, y2 = MID + math.cos(t)*36, sy + math.sin(t)*36
-        d.line([(x1,y1),(x2,y2)], fill=(255,255,255,160), width=4)
+    # Chip
+    d.rounded_rectangle([148, 270, 206, 310], radius=7, fill=(255, 248, 240, 120))
 
     return soft(img)
 
-# ── 4. Key (Koder & Info) ────────────────────────────────────────
+# ── 4. Key ───────────────────────────────────────────────────────
 def make_koder():
-    img = new_canvas(); d = ImageDraw.Draw(img)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
 
-    # Key head — ring
-    kx, ky = 170, MID
-    r_outer, r_inner = 100, 58
-    d.ellipse([kx-r_outer, ky-r_outer, kx+r_outer, ky+r_outer], fill=(255,255,255,220))
-    d.ellipse([kx-r_inner, ky-r_inner, kx+r_inner, ky+r_inner], fill=(0,0,0,0))
+    kx, ky = 172, MID
+    ro, ri = 96, 58
 
-    # Key shaft
-    shaft_x0, shaft_y0 = kx + r_outer - 10, ky - 28
-    shaft_x1, shaft_y1 = MID + 180, ky + 28
-    d.rounded_rectangle([shaft_x0, shaft_y0, shaft_x1, shaft_y1], radius=18, fill=(255,255,255,220))
+    # Key ring
+    d.ellipse([kx - ro, ky - ro, kx + ro, ky + ro], fill=FILL)
+    d.ellipse([kx - ri, ky - ri, kx + ri, ky + ri], fill=(0, 0, 0, 0))
 
-    # Teeth (two notches cut into shaft bottom)
-    for tx in [shaft_x1 - 70, shaft_x1 - 120]:
-        d.rounded_rectangle([tx, ky + 28, tx + 36, ky + 72], radius=10, fill=(255,255,255,220))
+    # Shaft
+    sx0 = kx + ro - 10
+    sx1 = MID + 190
+    d.rectangle([sx0, ky - 22, sx1, ky + 22], fill=FILL)
+
+    # Teeth
+    for tx in [sx1 - 50, sx1 - 100]:
+        d.rectangle([tx, ky + 22, tx + 28, ky + 60], fill=FILL)
 
     return soft(img)
 
-# ── 5. Binoculars (Discover) ────────────────────────────────────
+# ── 5. Binoculars ────────────────────────────────────────────────
 def make_discover():
-    img = new_canvas(); d = ImageDraw.Draw(img)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
 
-    r = 108
-    lx, rx, cy = MID - 105, MID + 105, MID + 10
+    r  = 96
+    lx = MID - 106
+    rx = MID + 106
+    cy = MID + 20
 
-    # Outer lens rings
+    # Two barrels
     for cx in (lx, rx):
-        d.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(255,255,255,200))
-        # Inner lens
-        d.ellipse([cx-r+22, cy-r+22, cx+r-22, cy+r-22], fill=(255,255,255,60))
-        # Lens glint
-        d.ellipse([cx-r+30, cy-r+30, cx-r+66, cy-r+66], fill=(255,255,255,160))
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=FILL)
+        # Inner lens ring (darker hole)
+        d.ellipse([cx - r + 26, cy - r + 26, cx + r - 26, cy + r - 26],
+                  fill=(255, 248, 240, 70))
 
-    # Bridge connecting the two lenses
-    bridge_y = cy - 26
-    d.rounded_rectangle([lx + r - 16, bridge_y, rx - r + 16, bridge_y + 52],
-                         radius=16, fill=(255,255,255,220))
+    # Bridge
+    bw = rx - r - lx - r
+    d.rounded_rectangle([lx + r - 4, cy - 20, rx - r + 4, cy + 20],
+                        radius=12, fill=FILL)
 
-    # Eye-piece tops
+    # Top eyecups
     for cx in (lx, rx):
-        d.rounded_rectangle([cx - 38, cy - r - 40, cx + 38, cy - r + 14],
-                             radius=12, fill=(255,255,255,200))
+        d.rounded_rectangle([cx - 36, cy - r - 40, cx + 36, cy - r + 10],
+                             radius=12, fill=FILL)
 
     return soft(img)
 
-# ── 6. Cooking pot (Recept) ─────────────────────────────────────
+# ── 6. Cooking pot ───────────────────────────────────────────────
 def make_recept():
-    img = new_canvas(); d = ImageDraw.Draw(img)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
+
+    px, py = MID, MID + 40
+    pw, ph = 200, 160
 
     # Pot body
-    px, py, pr = MID, MID + 50, 140
-    d.ellipse([px-pr, py-pr, px+pr, py+pr], fill=(255,255,255,210))
-    # Darker interior suggestion
-    d.ellipse([px-pr+20, py-pr+20, px+pr-20, py+pr-20], fill=(255,255,255,60))
+    d.rounded_rectangle([px - pw//2, py - ph//2, px + pw//2, py + ph//2],
+                        radius=28, fill=FILL)
 
     # Lid
-    lid_w, lid_h = 240, 48
-    d.rounded_rectangle([px - lid_w//2, py - pr - 22, px + lid_w//2, py - pr + lid_h],
-                         radius=20, fill=(255,255,255,220))
+    d.rounded_rectangle([px - pw//2 + 10, py - ph//2 - 30, px + pw//2 - 10, py - ph//2 + 14],
+                        radius=14, fill=FILL)
     # Lid knob
-    d.ellipse([px-20, py-pr-46, px+20, py-pr-8], fill=(255,255,255,220))
+    d.ellipse([px - 18, py - ph//2 - 52, px + 18, py - ph//2 - 20], fill=FILL)
 
-    # Handles — explicit symmetric coords to guarantee equal width
-    gap, hw = 12, 52
-    d.rounded_rectangle([px + pr + gap,      py - 48, px + pr + gap + hw, py + 48],
-                         radius=16, fill=(255,255,255,200))
-    d.rounded_rectangle([px - pr - gap - hw, py - 48, px - pr - gap,      py + 48],
-                         radius=16, fill=(255,255,255,200))
+    # Handles
+    for sign in (-1, 1):
+        hx = px + sign * (pw//2 + 8)
+        x0 = min(hx - 4, hx + sign * 42)
+        x1 = max(hx - 4, hx + sign * 42)
+        d.rounded_rectangle([x0, py - 34, x1, py + 34], radius=14, fill=FILL)
 
-    # Steam lines (3 wavy arcs)
-    for i, ox in enumerate((-52, 0, 52)):
+    # Heart
+    heart = new_canvas(); dh = ImageDraw.Draw(heart)
+    dh.polygon(heart_pts(px, py + 14, 38), fill=(255, 220, 200, 160))
+    img = Image.alpha_composite(img, heart)
+
+    # Steam
+    d = ImageDraw.Draw(img)
+    for ox in (-44, 0, 44):
         sx = px + ox
-        sy0 = py - pr - 70
+        sy0 = py - ph//2 - 60
         pts = []
-        for step in range(40):
-            t = step / 39
-            wx = sx + math.sin(t * math.pi * 2) * 16
-            wy = sy0 - t * 90
-            pts.append((wx, wy))
-        for j in range(len(pts)-1):
-            d.line([pts[j], pts[j+1]], fill=(255,255,255,int(180*(1-j/39))), width=8)
+        for step in range(20):
+            frac = step / 19
+            pts.append((sx + math.sin(frac * math.pi * 2) * 10, sy0 - frac * 52))
+        for j in range(len(pts) - 1):
+            a = int(130 * (1 - j / 19))
+            d.line([pts[j], pts[j+1]], fill=(255, 248, 240, a), width=6)
 
     return soft(img)
 
-# ── Generate all ────────────────────────────────────────────────
+
+# ── Generate ─────────────────────────────────────────────────────
 for name, fn in [
     ("art-shopping", make_shopping),
     ("art-resor",    make_resor),

@@ -18,23 +18,23 @@ struct OursCategory: Identifiable, Hashable, Codable {
 
     static let seed: [OursCategory] = [
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
-                     name: "Shopping",     colorHex1: "C9643A", colorHex2: "A84828",
-                     iconName: "cart.fill",         order: 0),
+                     name: "Shopping",     colorHex1: "D08A62", colorHex2: "C07050",
+                     iconName: "bag.fill",           order: 0),
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
-                     name: "Resor",        colorHex1: "3E7D5E", colorHex2: "265C42",
-                     iconName: "map.fill",           order: 1),
+                     name: "Resor",        colorHex1: "AEA378", colorHex2: "9B9067",
+                     iconName: "mountain.2.fill",    order: 1),
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
-                     name: "Ekonomi",      colorHex1: "B8802A", colorHex2: "956018",
+                     name: "Ekonomi",      colorHex1: "D39C5A", colorHex2: "C08848",
                      iconName: "creditcard.fill",    order: 2),
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
-                     name: "Koder & Info", colorHex1: "467070", colorHex2: "2C5252",
+                     name: "Koder & Info", colorHex1: "9E9267", colorHex2: "847D53",
                      iconName: "key.fill",           order: 3),
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
-                     name: "Discover",     colorHex1: "6A8C52", colorHex2: "4A6C34",
+                     name: "Discover",     colorHex1: "C8B090", colorHex2: "B49A78",
                      iconName: "binoculars.fill",    order: 4),
         OursCategory(id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!,
-                     name: "Recept",       colorHex1: "B85040", colorHex2: "943028",
-                     iconName: "fork.knife",         order: 5),
+                     name: "Recept",       colorHex1: "C3673E", colorHex2: "AA5530",
+                     iconName: "pot.fill",            order: 5),
     ]
 }
 
@@ -42,14 +42,8 @@ struct OursCategory: Identifiable, Hashable, Codable {
 
 extension OursCategory {
 
-    // Ekonomi and Discover look better with their SF Symbol than the Python art
-    var useSystemIcon: Bool {
-        id == UUID(uuidString: "00000000-0000-0000-0000-000000000003")! ||
-        id == UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
-    }
-
-    var artImageName: String {
-        "art-\(name.components(separatedBy: " ").first!.lowercased())"
+    var overlayIconName: String? {
+        id == UUID(uuidString: "00000000-0000-0000-0000-000000000001")! ? "heart.fill" : nil
     }
 
     // Sheet title when adding a new entry
@@ -63,7 +57,8 @@ extension OursCategory {
 
     // Resor uses TripDetailView (block-based); others use SubcategoryView
     var useTripView: Bool {
-        id == UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        id == UUID(uuidString: "00000000-0000-0000-0000-000000000002")! ||
+        id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
     }
 
     // Koder & Info is reference material — no point ticking items off
@@ -189,6 +184,7 @@ struct ListItem: Identifiable, Hashable, Codable {
 enum TripBlockType: String, Codable {
     case checklist
     case note
+    case photos
 }
 
 struct TripBlock: Identifiable, Hashable, Codable {

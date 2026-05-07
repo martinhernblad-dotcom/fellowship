@@ -7,6 +7,8 @@ struct CategoryView: View {
     @State private var editMode: EditMode = .inactive
     @State private var subToRename: OursSubcategory? = nil
     @State private var renameText = ""
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<UUID> = []
 
     private var subcategories: [OursSubcategory] {
         viewModel.subcategoriesByCategory[category.id] ?? []
@@ -26,22 +28,58 @@ struct CategoryView: View {
         }
         .navigationTitle(category.name)
         .navigationBarTitleDisplayMode(.large)
+        .fontDesign(.rounded)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
                     if !subcategories.isEmpty {
-                        Button {
-                            withAnimation { editMode = editMode == .active ? .inactive : .active }
-                        } label: {
-                            Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white.opacity(editMode == .active ? 1 : 0.7))
+                        if isSelecting {
+                            Button {
+                                withAnimation { isSelecting = false; selectedIDs = [] }
+                            } label: {
+                                Text("Avbryt")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                        } else {
+                            Button {
+                                withAnimation { editMode = editMode == .active ? .inactive : .active }
+                            } label: {
+                                Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.white.opacity(editMode == .active ? 1 : 0.7))
+                            }
+                            Button {
+                                withAnimation { isSelecting = true }
+                            } label: {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
                         }
                     }
-                    Button { showAddSheet = true } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white)
+                    if !isSelecting {
+                        Button { showAddSheet = true } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+            if isSelecting && !selectedIDs.isEmpty {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(role: .destructive) {
+                        let toDelete = subcategories.filter { selectedIDs.contains($0.id) }
+                        Task {
+                            for sub in toDelete {
+                                await viewModel.deleteSubcategory(sub, from: category)
+                            }
+                        }
+                        withAnimation { isSelecting = false; selectedIDs = [] }
+                    } label: {
+                        Label("Ta bort (\(selectedIDs.count))", systemImage: "trash")
+                            .foregroundColor(.red)
                     }
                 }
             }
@@ -71,31 +109,56 @@ struct CategoryView: View {
     private var listContent: some View {
         List {
             ForEach(subcategories) { sub in
-                NavigationLink {
-                    if category.useTripView {
-                        TripDetailView(trip: sub, category: category)
-                    } else {
-                        SubcategoryView(subcategory: sub, category: category)
+                HStack(spacing: 12) {
+                    if isSelecting {
+                        Image(systemName: selectedIDs.contains(sub.id)
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 22))
+                            .foregroundColor(selectedIDs.contains(sub.id)
+                                             ? Color(hex: category.colorHex1) : .white.opacity(0.3))
+                            .onTapGesture {
+                                withAnimation {
+                                    if selectedIDs.contains(sub.id) { selectedIDs.remove(sub.id) }
+                                    else { selectedIDs.insert(sub.id) }
+                                }
+                            }
                     }
-                } label: {
-                    SubcategoryRow(subcategory: sub, category: category)
+                    if isSelecting {
+                        SubcategoryRow(subcategory: sub, category: category)
+                            .onTapGesture {
+                                withAnimation {
+                                    if selectedIDs.contains(sub.id) { selectedIDs.remove(sub.id) }
+                                    else { selectedIDs.insert(sub.id) }
+                                }
+                            }
+                    } else {
+                        NavigationLink {
+                            if category.useTripView {
+                                TripDetailView(trip: sub, category: category)
+                            } else {
+                                SubcategoryView(subcategory: sub, category: category)
+                            }
+                        } label: {
+                            SubcategoryRow(subcategory: sub, category: category)
+                        }
+                        .contextMenu {
+                            Button {
+                                renameText = sub.name
+                                subToRename = sub
+                            } label: {
+                                Label("Ändra", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteSubcategory(sub, from: category) }
+                            } label: {
+                                Label("Ta bort lista", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                .contextMenu {
-                    Button {
-                        renameText = sub.name
-                        subToRename = sub
-                    } label: {
-                        Label("Ändra", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        Task { await viewModel.deleteSubcategory(sub, from: category) }
-                    } label: {
-                        Label("Ta bort lista", systemImage: "trash")
-                    }
-                }
             }
             .onMove { from, to in
                 viewModel.moveSubcategory(in: category, fromOffsets: from, toOffset: to)
