@@ -147,3 +147,109 @@ struct AddItemSheet: View {
         }
     }
 }
+
+// MARK: - Edit Item Sheet
+
+struct EditItemSheet: View {
+    let item: ListItem
+    let subcategory: OursSubcategory
+    let category: OursCategory
+    @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var title: String
+    @State private var notes: String
+    @State private var url: String
+
+    init(item: ListItem, subcategory: OursSubcategory, category: OursCategory) {
+        self.item = item; self.subcategory = subcategory; self.category = category
+        _title = State(initialValue: item.title)
+        _notes = State(initialValue: item.notes)
+        _url   = State(initialValue: item.url)
+    }
+
+    private var accent: Color { Color(hex: category.colorHex1) }
+    private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.appBackground.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        fieldLabel("NAMN")
+                        TextField("", text: $title,
+                                  prompt: Text("Namn").foregroundColor(.white.opacity(0.3)))
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .padding(16)
+                            .background(Color.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                        fieldLabel("ANTECKNINGAR")
+                        TextField("", text: $notes,
+                                  prompt: Text("Lägg till anteckningar…").foregroundColor(.white.opacity(0.3)),
+                                  axis: .vertical)
+                            .font(.system(size: 15))
+                            .foregroundColor(.white)
+                            .lineLimit(3...8)
+                            .padding(14)
+                            .background(Color.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                        fieldLabel("LÄNK")
+                        TextField("", text: $url,
+                                  prompt: Text("https://…").foregroundColor(.white.opacity(0.3)))
+                            .font(.system(size: 15))
+                            .foregroundColor(.white)
+                            .keyboardType(.URL)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .padding(14)
+                            .background(Color.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                        Spacer(minLength: 40)
+
+                        Button {
+                            guard isValid else { return }
+                            viewModel.updateItem(item,
+                                title: title.trimmingCharacters(in: .whitespaces),
+                                notes: notes, url: url, in: subcategory)
+                            dismiss()
+                        } label: {
+                            Text("Spara")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(LinearGradient(
+                                    colors: isValid
+                                        ? [Color(hex: category.colorHex1), Color(hex: category.colorHex2)]
+                                        : [Color.surfaceColor, Color.surfaceColor],
+                                    startPoint: .leading, endPoint: .trailing))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .disabled(!isValid)
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Ändra")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Avbryt") { dismiss() }.foregroundColor(.white.opacity(0.7))
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundColor(.white.opacity(0.4))
+            .tracking(1.2)
+    }
+}

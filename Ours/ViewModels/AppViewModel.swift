@@ -214,6 +214,16 @@ final class AppViewModel: ObservableObject {
         Task { _ = try? await cloudKit.saveItem(its[idx]) }
     }
 
+    func updateItem(_ item: ListItem, title: String, notes: String, url: String, in sub: OursSubcategory) {
+        guard var its = itemsBySubcategory[sub.id],
+              let idx = its.firstIndex(where: { $0.id == item.id }) else { return }
+        its[idx].title = title
+        its[idx].notes = notes
+        its[idx].url   = url
+        itemsBySubcategory[sub.id] = its
+        Task { _ = try? await cloudKit.saveItem(its[idx]) }
+    }
+
     func moveItem(in subcategory: OursSubcategory, fromOffsets: IndexSet, toOffset: Int) {
         guard var its = itemsBySubcategory[subcategory.id] else { return }
         its.move(fromOffsets: fromOffsets, toOffset: toOffset)

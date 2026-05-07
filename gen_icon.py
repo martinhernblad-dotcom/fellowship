@@ -11,8 +11,8 @@ HALF   = SIZE // 2
 img = Image.new("RGBA", (SIZE, SIZE))
 draw = ImageDraw.Draw(img)
 
-top_col    = (255, 112, 50)   # vivid orange
-bottom_col = (40,  185, 110)  # vivid green
+top_col    = (232, 212, 192)  # warm beige (home background)
+bottom_col = (180, 60,  15)   # deep fire orange
 
 for y in range(SIZE):
     t = y / (SIZE - 1)
@@ -36,35 +36,30 @@ for deg in range(360):
 # Soft white heart with slight transparency
 heart_layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
 heart_draw  = ImageDraw.Draw(heart_layer)
-heart_draw.polygon(pts, fill=(255, 255, 255, 245))
+heart_draw.polygon(pts, fill=(255, 255, 255, 170))
 
-# Gentle drop shadow under heart
-shadow_layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-shadow_draw  = ImageDraw.Draw(shadow_layer)
-shadow_pts   = [(x + 6, y + 10) for x, y in pts]
-shadow_draw.polygon(shadow_pts, fill=(0, 0, 0, 60))
-shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(18))
+# ── Stencil lines: punch holes through the heart ─────────────────
+line_w   = 230
+line_h   = 28
+radius   = 14
+offsets  = [-40, 24, 88]
 
-img = Image.alpha_composite(img.convert("RGBA"), shadow_layer)
-img = Image.alpha_composite(img, heart_layer)
-
-# ── List lines inside the heart ──────────────────────────────────
-line_draw  = ImageDraw.Draw(img)
-line_color = (210, 100, 45, 240)  # vivid terracotta, punchy on white
-line_w     = 230
-line_h     = 28
-radius     = 14
-offsets    = [-72, -8, 56]
-
+line_mask = Image.new("L", (SIZE, SIZE), 0)
+lm_draw   = ImageDraw.Draw(line_mask)
 for dy in offsets:
     lx0 = cx - line_w // 2
     ly0 = cy + dy - line_h // 2
     lx1 = lx0 + line_w
     ly1 = ly0 + line_h
-    # Shorter first line (like a bold title)
     if dy == offsets[0]:
         lx0 += 30; lx1 -= 30
-    line_draw.rounded_rectangle([lx0, ly0, lx1, ly1], radius=radius, fill=line_color)
+    lm_draw.rounded_rectangle([lx0, ly0, lx1, ly1], radius=radius, fill=255)
+
+# Cut holes in heart layer where lines are
+transparent_patch = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+heart_layer.paste(transparent_patch, mask=line_mask)
+
+img = Image.alpha_composite(img.convert("RGBA"), heart_layer)
 
 # ── Export all required sizes ─────────────────────────────────────
 ASSET_DIR = os.path.join(

@@ -7,8 +7,7 @@ struct SubcategoryView: View {
     @State private var showAddItem = false
     @State private var editMode: EditMode = .inactive
     @State private var noteText: String = ""
-    @State private var itemToRename: ListItem? = nil
-    @State private var renameText = ""
+    @State private var itemToEdit: ListItem? = nil
     @State private var isSelecting = false
     @State private var selectedIDs: Set<UUID> = []
 
@@ -98,22 +97,13 @@ struct SubcategoryView: View {
             AddItemSheet(subcategory: subcategory, category: category)
                 .environmentObject(viewModel)
         }
+        .sheet(item: $itemToEdit) { item in
+            EditItemSheet(item: item, subcategory: subcategory, category: category)
+                .environmentObject(viewModel)
+        }
         .task {
             await viewModel.loadItems(for: subcategory)
             noteText = subcategory.note
-        }
-        .alert("Ändra namn", isPresented: Binding(
-            get: { itemToRename != nil },
-            set: { if !$0 { itemToRename = nil } }
-        )) {
-            TextField("Namn", text: $renameText)
-            Button("Spara") {
-                if let item = itemToRename, !renameText.trimmingCharacters(in: .whitespaces).isEmpty {
-                    viewModel.renameItem(item, to: renameText.trimmingCharacters(in: .whitespaces), in: subcategory)
-                }
-                itemToRename = nil
-            }
-            Button("Avbryt", role: .cancel) { itemToRename = nil }
         }
     }
 
@@ -176,8 +166,7 @@ struct SubcategoryView: View {
                         .contextMenu {
                             if !isSelecting {
                                 Button {
-                                    renameText = item.title
-                                    itemToRename = item
+                                    itemToEdit = item
                                 } label: {
                                     Label("Ändra", systemImage: "pencil")
                                 }
