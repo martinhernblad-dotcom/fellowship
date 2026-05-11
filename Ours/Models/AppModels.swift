@@ -77,9 +77,11 @@ extension OursCategory {
         return [.checklist, .note, .photos]
     }
 
-    // Koder & Info is reference material — no point ticking items off
+    // Koder & Info is reference material; Discover is a watchlist — no point ticking either off
     var isCheckable: Bool {
-        id != UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+        let kodInfo  = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+        let discover = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
+        return id != kodInfo && id != discover
     }
 
     // Section label for the note/instructions block — only Recept uses this now

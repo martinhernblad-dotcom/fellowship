@@ -48,31 +48,34 @@ final class AppViewModel: ObservableObject {
         for s in store.subcategories.sorted(by: { $0.order < $1.order }) {
             subsByCategory[s.categoryID, default: []].append(s)
         }
-        subcategoriesByCategory = subsByCategory
+        if subcategoriesByCategory != subsByCategory { subcategoriesByCategory = subsByCategory }
 
         var itemsBySub: [UUID: [ListItem]] = [:]
         for i in store.items.sorted(by: { $0.order < $1.order }) {
             itemsBySub[i.subcategoryID, default: []].append(i)
         }
-        itemsBySubcategory = itemsBySub
+        if itemsBySubcategory != itemsBySub { itemsBySubcategory = itemsBySub }
 
         var blocksByT: [UUID: [TripBlock]] = [:]
         for b in store.tripBlocks.sorted(by: { $0.order < $1.order }) {
             blocksByT[b.tripID, default: []].append(b)
         }
-        blocksByTrip = blocksByT
+        if blocksByTrip != blocksByT { blocksByTrip = blocksByT }
 
         var ciByB: [UUID: [TripCheckItem]] = [:]
         for ci in store.tripCheckItems.sorted(by: { $0.order < $1.order }) {
             ciByB[ci.blockID, default: []].append(ci)
         }
-        checkItemsByBlock = ciByB
+        if checkItemsByBlock != ciByB { checkItemsByBlock = ciByB }
 
-        profiles = store.profiles
-        if !store.categories.isEmpty { categories = store.categories }
+        if profiles != store.profiles { profiles = store.profiles }
+        if !store.categories.isEmpty, categories != store.categories {
+            categories = store.categories
+        }
 
         if let myID = currentProfile?.deviceID,
-           let mine = profiles.first(where: { $0.deviceID == myID }) {
+           let mine = profiles.first(where: { $0.deviceID == myID }),
+           mine != currentProfile {
             currentProfile = mine
         }
     }

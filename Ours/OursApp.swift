@@ -21,6 +21,7 @@ struct FellowshipApp: App {
     @UIApplicationDelegateAdaptor(FellowshipAppDelegate.self) var appDelegate
     @StateObject private var viewModel = AppViewModel()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var didSeeInitialActive = false
 
     var body: some Scene {
         WindowGroup {
@@ -35,7 +36,14 @@ struct FellowshipApp: App {
             .preferredColorScheme(.dark)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, viewModel.coupleID != nil {
+            guard phase == .active else { return }
+            // First .active on launch is handled by HomeView.task → loadAll().
+            // Only sync on subsequent foregrounding to avoid a redraw storm.
+            guard didSeeInitialActive else {
+                didSeeInitialActive = true
+                return
+            }
+            if viewModel.coupleID != nil {
                 Task { await viewModel.syncFromCloud() }
             }
         }

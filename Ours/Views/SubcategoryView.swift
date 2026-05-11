@@ -349,6 +349,11 @@ struct SubcategoryView: View {
         }
     }
 
+    private func itemURL(_ item: ListItem) -> URL? {
+        if !item.url.isEmpty, let u = URL(string: item.url) { return u }
+        return LinkDetector.extractURL(from: item.title)
+    }
+
     @ViewBuilder
     private func itemRow(_ item: ListItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -375,41 +380,41 @@ struct SubcategoryView: View {
                 .padding(.top, 2)
             }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Button {
-                    if isSelecting { toggleSelection(item.id) }
-                    else { itemToEdit = item }
-                } label: {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(item.title)
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundColor(category.isCheckable && item.isCompleted
-                                             ? .white.opacity(0.35) : .white)
-                            .strikethrough(category.isCheckable && item.isCompleted,
-                                           color: .white.opacity(0.3))
-                            .multilineTextAlignment(.leading)
-                        if !item.notes.isEmpty {
-                            Text(item.notes)
-                                .font(.system(size: 13, design: .rounded))
-                                .foregroundColor(.white.opacity(0.45))
-                                .lineLimit(3)
-                                .multilineTextAlignment(.leading)
-                        }
+            if let url = itemURL(item) {
+                LinkPreviewBody(
+                    url: url,
+                    userTitle: item.title,
+                    notes: item.notes,
+                    accentHex: category.colorHex1,
+                    onTap: {
+                        if isSelecting { toggleSelection(item.id) }
+                        else { openURL(url) }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if !item.url.isEmpty, let url = URL(string: item.url) {
-                    Button { openURL(url) } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "link").font(.system(size: 11))
-                            Text(url.host ?? item.url)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 5) {
+                    Button {
+                        if isSelecting { toggleSelection(item.id) }
+                        else { itemToEdit = item }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(item.title)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .foregroundColor(category.isCheckable && item.isCompleted
+                                                 ? .white.opacity(0.35) : .white)
+                                .strikethrough(category.isCheckable && item.isCompleted,
+                                               color: .white.opacity(0.3))
+                                .multilineTextAlignment(.leading)
+                            if !item.notes.isEmpty {
+                                Text(item.notes)
+                                    .font(.system(size: 13, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.45))
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                            }
                         }
-                        .foregroundColor(Color(hex: category.colorHex1))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -577,7 +582,13 @@ struct SubcategoryView: View {
         guard !t.isEmpty else { return }
         quickAddText = ""
         Task {
-            await viewModel.addItem(title: t, notes: "", url: "", to: subcategory)
+            if let url = LinkDetector.extractURL(from: t) {
+                let urlStr = url.absoluteString
+                await viewModel.addItem(title: urlStr, notes: "", url: urlStr, to: subcategory)
+                LinkPreviewService.shared.fetchIfNeeded(urlStr)
+            } else {
+                await viewModel.addItem(title: t, notes: "", url: "", to: subcategory)
+            }
             quickAddFocused = true
         }
     }
@@ -611,3 +622,104 @@ struct SubcategoryView: View {
     }
 }
 
+// MARK: - Link preview row body
+
+private struct LinkPreviewBody: View {
+    let url: URL
+    let userTitle: String
+    let notes: String
+    let accentHex: String
+    let onTap: () -> Void
+
+    @ObservedObject private var service = LinkPreviewService.shared
+
+    private var meta: LinkPreviewService.Metadata? {
+        service.metadata(for: url.absoluteString)
+    }
+    private var thumb: UIImage? {
+        service.thumbnail(for: url.absoluteString)
+    }
+
+    private var displayTitle: String {
+        let trimmed = userTitle.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty, trimmed != url.absoluteString { return trimmed }
+        if let m = meta, !m.title.isEmpty, m.title != url.absoluteString { return m.title }
+        return url.host?.replacingOccurrences(of: "www.", with: "") ?? url.absoluteString
+    }
+
+    private var sourceLabel: String {
+        meta?.sourceName ?? LinkPreviewService.sourceLabel(for: url) ?? ""
+    }
+
+    private var sourceIcon: String {
+        switch sourceLabel.lowercased() {
+        case "youtube", "vimeo", "tiktok": return "play.fill"
+        case "instagram": return "camera.fill"
+        case "x":         return "bubble.left.fill"
+        default:          return "link"
+        }
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 10) {
+                thumbnail
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayTitle)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    HStack(spacing: 5) {
+                        Image(systemName: sourceIcon).font(.system(size: 10, weight: .semibold))
+                        Text(sourceLabel.isEmpty ? (url.host ?? "") : sourceLabel)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(Color(hex: accentHex))
+
+                    if !notes.isEmpty {
+                        Text(notes)
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(.white.opacity(0.45))
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                            .padding(.top, 2)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onAppear { service.fetchIfNeeded(url.absoluteString) }
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        ZStack {
+            if let img = thumb {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [Color(hex: accentHex).opacity(0.20),
+                             Color(hex: accentHex).opacity(0.08)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                Image(systemName: sourceIcon)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(Color(hex: accentHex).opacity(0.55))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(16.0/9.0, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
