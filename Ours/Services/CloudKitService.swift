@@ -80,9 +80,12 @@ final class CloudKitService {
         ciDocs.compactMap(TripCheckItem.init(fs:)).forEach   { store.merge($0) }
         prDocs.compactMap(UserProfile.init(fs:)).forEach     { store.merge($0) }
         // Profiles aren't tombstoned (no in-app delete API), so reconcile:
-        // remove any local profile not present in the fetched Firestore set.
-        let validProfileIDs = Set(prDocs.compactMap { $0["id"] as? String })
-        store.profiles.removeAll { !validProfileIDs.contains($0.id.uuidString) }
+        // remove any local profile whose deviceID isn't present in the fetched
+        // set. Keying by deviceID matters because old + new docs for the same
+        // person may share a UUID (UserDefaults carry-over across reinstalls)
+        // but differ in deviceID — and Firestore keys profile docs by deviceID.
+        let validDeviceIDs = Set(prDocs.compactMap { $0["deviceID"] as? String })
+        store.profiles.removeAll { !validDeviceIDs.contains($0.deviceID) }
         store.save()
     }
 
@@ -123,10 +126,11 @@ final class CloudKitService {
                 applyMerge(data: data, collection: collection)
                 changed = true
             case .removed:
-                if let id = data["id"] as? String {
-                    store.applyDeletion(collection: collection, id: id)
-                    changed = true
-                }
+                // For most collections the doc ID is the entity UUID; for
+                // profiles it's the deviceID. applyDeletion handles both.
+                let id = change.document.documentID
+                store.applyDeletion(collection: collection, id: id)
+                changed = true
             }
         }
         if changed { store.save() }
@@ -481,7 +485,8 @@ final class LocalStore {
         case "tripCheckItems":
             tripCheckItems.removeAll { $0.id == uuid }
         case "profiles":
-            profiles.removeAll { $0.id == uuid }
+            // For profiles the Firestore doc ID is the deviceID, not the entity UUID.
+            profiles.removeAll { $0.deviceID == id }
         default: break
         }
     }

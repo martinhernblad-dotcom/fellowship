@@ -25,7 +25,11 @@ final class AppViewModel: ObservableObject {
     var isProfileSetup: Bool { currentProfile != nil }
 
     var partnerProfile: UserProfile? {
-        profiles.first { $0.deviceID != deviceID }
+        let myName = currentProfile?.name
+        return profiles.first { profile in
+            profile.deviceID != deviceID
+                && (myName == nil || profile.name != myName)
+        }
     }
 
     private var noteSaveTasks:  [UUID: Task<Void, Never>] = [:]
