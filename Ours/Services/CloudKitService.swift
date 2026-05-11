@@ -79,6 +79,10 @@ final class CloudKitService {
         blDocs.compactMap(TripBlock.init(fs:)).forEach       { store.merge($0) }
         ciDocs.compactMap(TripCheckItem.init(fs:)).forEach   { store.merge($0) }
         prDocs.compactMap(UserProfile.init(fs:)).forEach     { store.merge($0) }
+        // Profiles aren't tombstoned (no in-app delete API), so reconcile:
+        // remove any local profile not present in the fetched Firestore set.
+        let validProfileIDs = Set(prDocs.compactMap { $0["id"] as? String })
+        store.profiles.removeAll { !validProfileIDs.contains($0.id.uuidString) }
         store.save()
     }
 
@@ -476,6 +480,8 @@ final class LocalStore {
             deleteLocalPhotoFiles(photoFilenames)
         case "tripCheckItems":
             tripCheckItems.removeAll { $0.id == uuid }
+        case "profiles":
+            profiles.removeAll { $0.id == uuid }
         default: break
         }
     }

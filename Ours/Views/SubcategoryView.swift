@@ -14,7 +14,12 @@ struct SubcategoryView: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var quickAddText: String = ""
     @FocusState private var quickAddFocused: Bool
+    @State private var sortByStore: Bool = false
     @Environment(\.openURL) private var openURL
+
+    private var isShopping: Bool {
+        category.id == UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    }
 
     private var items: [ListItem] {
         viewModel.itemsBySubcategory[subcategory.id] ?? []
@@ -85,6 +90,17 @@ struct SubcategoryView: View {
                                         .foregroundColor(.white.opacity(0.7))
                                 }
                             }
+                        }
+                    }
+                    if !isSelecting && isShopping && !items.isEmpty {
+                        Button {
+                            withAnimation { sortByStore.toggle() }
+                        } label: {
+                            Image(systemName: sortByStore ? "cart.fill" : "cart")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(sortByStore
+                                                 ? Color(hex: category.colorHex1)
+                                                 : .white.opacity(0.7))
                         }
                     }
                     if !isSelecting {
@@ -177,6 +193,28 @@ struct SubcategoryView: View {
         return (cats + its + blks).sorted { $0.order < $1.order }
     }
 
+    private var nonItemRows: [RowEntry] {
+        allRows.filter {
+            switch $0 {
+            case .category, .block: return true
+            case .item:             return false
+            }
+        }
+    }
+
+    private var itemsBySection: [ShoppingSection: [ListItem]] {
+        var result: [ShoppingSection: [ListItem]] = [:]
+        for item in items {
+            let section = GroceryCategorizer.section(for: item.title)
+            result[section, default: []].append(item)
+        }
+        return result
+    }
+
+    private var sortedSections: [ShoppingSection] {
+        itemsBySection.keys.sorted { $0.rawValue < $1.rawValue }
+    }
+
     // MARK: - List
 
     private var listContent: some View {
@@ -192,7 +230,9 @@ struct SubcategoryView: View {
                 }
             }
 
-            if !allRows.isEmpty {
+            if sortByStore && isShopping {
+                groupedByStoreSection
+            } else if !allRows.isEmpty {
                 ForEach(allRows) { row in
                     rowView(for: row)
                         .listRowBackground(Color.clear)
@@ -216,6 +256,46 @@ struct SubcategoryView: View {
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
         .environment(\.editMode, $editMode)
+    }
+
+    @ViewBuilder
+    private var groupedByStoreSection: some View {
+        if !nonItemRows.isEmpty {
+            ForEach(nonItemRows) { row in
+                rowView(for: row)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task { await deleteRow(row) }
+                        } label: {
+                            Label("Ta bort", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
+            }
+        }
+        ForEach(sortedSections) { section in
+            Section {
+                ForEach(itemsBySection[section] ?? []) { item in
+                    itemRow(item)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteItem(item, from: subcategory) }
+                            } label: {
+                                Label("Ta bort", systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
+                }
+            } header: {
+                sectionHeader(section.displayName.uppercased())
+            }
+        }
     }
 
     private func hideKeyboard() {

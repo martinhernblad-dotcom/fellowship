@@ -33,6 +33,7 @@
 		AA00001122334455667718DD /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667719EE /* ImagePicker.swift */; };
 		AA0000112233445566771AFF /* RecipeImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566771BAA /* RecipeImportSheet.swift */; };
 		AA0000112233445566771CBB /* LineCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566771DCC /* LineCategoryIcon.swift */; };
+		AA0000112233445566771EFF /* GroceryCategorizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566771FAA /* GroceryCategorizer.swift */; };
 		AA11BB22CC33DD44EE55FF66 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF6600AA /* PairingView.swift */; };
 		B8C333A57E004123B075F177 /* CategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE37E50521FB4EB993EF5AC6 /* CategoryView.swift */; };
 		B8EC860B29FD4F17B0E728AB /* SubcategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2051027ECE43319A8E3DDE /* SubcategoryView.swift */; };
@@ -69,6 +70,7 @@
 		AA00001122334455667719EE /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ImagePicker.swift; path = Ours/Views/ImagePicker.swift; sourceTree = SOURCE_ROOT; };
 		AA0000112233445566771BAA /* RecipeImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipeImportSheet.swift; path = Ours/Views/RecipeImportSheet.swift; sourceTree = SOURCE_ROOT; };
 		AA0000112233445566771DCC /* LineCategoryIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineCategoryIcon.swift; path = Ours/Views/LineCategoryIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566771FAA /* GroceryCategorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GroceryCategorizer.swift; path = Ours/Services/GroceryCategorizer.swift; sourceTree = SOURCE_ROOT; };
 		AA22BB33CC44DD55EE66FF77 /* CormorantGaramond-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "CormorantGaramond-Medium.ttf"; path = "Ours/Fonts/CormorantGaramond-Medium.ttf"; sourceTree = SOURCE_ROOT; };
 		B1801DDC4BA24186B4FA86E8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Ours/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		BB22CC33DD44EE55FF6600AA /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PairingView.swift; path = Ours/Views/PairingView.swift; sourceTree = SOURCE_ROOT; };
@@ -173,6 +175,7 @@
 				AA00001122334455667713EE /* RecipeIngredientParser.swift */,
 				AA00001122334455667715AA /* RecipeURLImporter.swift */,
 				AA00001122334455667717CC /* RecipePhotoImporter.swift */,
+				AA0000112233445566771FAA /* GroceryCategorizer.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -310,6 +313,7 @@
 				AA00001122334455667718DD /* ImagePicker.swift in Sources */,
 				AA0000112233445566771AFF /* RecipeImportSheet.swift in Sources */,
 				AA0000112233445566771CBB /* LineCategoryIcon.swift in Sources */,
+				AA0000112233445566771EFF /* GroceryCategorizer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -322,7 +326,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ours/Ours.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = R4JS7Y3H9L;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Ours/Info.plist;
@@ -458,7 +462,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ours/Ours.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = R4JS7Y3H9L;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Ours/Info.plist;
