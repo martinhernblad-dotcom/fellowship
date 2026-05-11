@@ -11,7 +11,8 @@ struct CategoryView: View {
     @State private var selectedIDs: Set<UUID> = []
 
     private var subcategories: [OursSubcategory] {
-        viewModel.subcategoriesByCategory[category.id] ?? []
+        (viewModel.subcategoriesByCategory[category.id] ?? [])
+            .filter { $0.parentSubcategoryID == nil }
     }
 
     var body: some View {
@@ -85,8 +86,13 @@ struct CategoryView: View {
             }
         }
         .sheet(isPresented: $showAddSheet) {
-            AddSubcategorySheet(category: category)
-                .environmentObject(viewModel)
+            if category.id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")! {
+                RecipeImportSheet(category: category)
+                    .environmentObject(viewModel)
+            } else {
+                AddSubcategorySheet(category: category)
+                    .environmentObject(viewModel)
+            }
         }
         .task { await viewModel.loadSubcategories(for: category) }
         .alert("Ändra namn", isPresented: Binding(
@@ -141,6 +147,7 @@ struct CategoryView: View {
                         } label: {
                             SubcategoryRow(subcategory: sub, category: category)
                         }
+                        .buttonStyle(.plain)
                         .contextMenu {
                             Button {
                                 renameText = sub.name
@@ -214,7 +221,7 @@ struct SubcategoryRow: View {
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 11)
                     .fill(
                         LinearGradient(
                             colors: [Color(hex: category.colorHex1).opacity(0.25),
@@ -222,24 +229,21 @@ struct SubcategoryRow: View {
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 50, height: 50)
+                    .frame(width: 42, height: 42)
                 Image(systemName: subcategory.iconName)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(Color(hex: category.colorHex1))
             }
 
             Text(subcategory.name)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.white)
 
             Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.25))
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }

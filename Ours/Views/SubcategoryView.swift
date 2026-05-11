@@ -4,28 +4,49 @@ struct SubcategoryView: View {
     let subcategory: OursSubcategory
     let category: OursCategory
     @EnvironmentObject private var viewModel: AppViewModel
-    @State private var showAddItem = false
+    @State private var showAddBlock = false
     @State private var editMode: EditMode = .inactive
     @State private var noteText: String = ""
     @State private var itemToEdit: ListItem? = nil
+    @State private var subToRename: OursSubcategory? = nil
+    @State private var renameText = ""
     @State private var isSelecting = false
     @State private var selectedIDs: Set<UUID> = []
+    @State private var quickAddText: String = ""
+    @FocusState private var quickAddFocused: Bool
+    @Environment(\.openURL) private var openURL
 
     private var items: [ListItem] {
         viewModel.itemsBySubcategory[subcategory.id] ?? []
     }
 
+    private var children: [OursSubcategory] {
+        viewModel.childSubcategories(of: subcategory)
+    }
+
+    private var blocks: [TripBlock] {
+        viewModel.blocksByTrip[subcategory.id] ?? []
+    }
+
     private var hasNoteSection: Bool { category.noteLabel != nil }
+    private var isEmpty: Bool { items.isEmpty && children.isEmpty && blocks.isEmpty && !hasNoteSection }
 
     var body: some View {
         ZStack {
             Color.appBackground.ignoresSafeArea()
 
-            Group {
-                if hasNoteSection || !items.isEmpty {
-                    listContent
-                } else {
-                    emptyState
+            VStack(spacing: 0) {
+                Group {
+                    if !isEmpty {
+                        listContent
+                    } else {
+                        emptyState
+                    }
+                }
+                .frame(maxHeight: .infinity)
+
+                if !isSelecting {
+                    quickAddBar
                 }
             }
         }
@@ -35,7 +56,7 @@ struct SubcategoryView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
-                    if !items.isEmpty {
+                    if !items.isEmpty || !children.isEmpty || !blocks.isEmpty {
                         if isSelecting {
                             Button {
                                 withAnimation {
@@ -55,17 +76,19 @@ struct SubcategoryView: View {
                                     .font(.system(size: 15, weight: .medium))
                                     .foregroundColor(.white.opacity(editMode == .active ? 1 : 0.7))
                             }
-                            Button {
-                                withAnimation { isSelecting = true }
-                            } label: {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.7))
+                            if !items.isEmpty {
+                                Button {
+                                    withAnimation { isSelecting = true }
+                                } label: {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
                             }
                         }
                     }
                     if !isSelecting {
-                        Button { showAddItem = true } label: {
+                        Button { showAddBlock = true } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white)
@@ -93,25 +116,71 @@ struct SubcategoryView: View {
                 }
             }
         }
-        .sheet(isPresented: $showAddItem) {
-            AddItemSheet(subcategory: subcategory, category: category)
+        .sheet(isPresented: $showAddBlock) {
+            AddBlockSheet(trip: subcategory, category: category, blockTypes: [.note])
                 .environmentObject(viewModel)
         }
         .sheet(item: $itemToEdit) { item in
             EditItemSheet(item: item, subcategory: subcategory, category: category)
                 .environmentObject(viewModel)
         }
+        .alert("Ändra namn", isPresented: Binding(
+            get: { subToRename != nil },
+            set: { if !$0 { subToRename = nil } }
+        )) {
+            TextField("Namn", text: $renameText)
+            Button("Spara") {
+                if let sub = subToRename, !renameText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    viewModel.renameSubcategory(sub,
+                        to: renameText.trimmingCharacters(in: .whitespaces),
+                        in: category)
+                }
+                subToRename = nil
+            }
+            Button("Avbryt", role: .cancel) { subToRename = nil }
+        }
         .task {
             await viewModel.loadItems(for: subcategory)
+            await viewModel.loadBlocks(for: subcategory)
             noteText = subcategory.note
         }
+    }
+
+    // MARK: - Unified row entry
+
+    private enum RowEntry: Identifiable, Hashable {
+        case category(OursSubcategory)
+        case item(ListItem)
+        case block(TripBlock)
+
+        var id: String {
+            switch self {
+            case .category(let c): return "c-\(c.id.uuidString)"
+            case .item(let i):     return "i-\(i.id.uuidString)"
+            case .block(let b):    return "b-\(b.id.uuidString)"
+            }
+        }
+
+        var order: Int {
+            switch self {
+            case .category(let c): return c.order
+            case .item(let i):     return i.order
+            case .block(let b):    return b.order
+            }
+        }
+    }
+
+    private var allRows: [RowEntry] {
+        let cats = children.map { RowEntry.category($0) }
+        let its = items.map { RowEntry.item($0) }
+        let blks = blocks.map { RowEntry.block($0) }
+        return (cats + its + blks).sorted { $0.order < $1.order }
     }
 
     // MARK: - List
 
     private var listContent: some View {
         List {
-            // Note section (Recept: instructions, Resor: trip info)
             if let noteLabel = category.noteLabel {
                 Section {
                     noteEditor
@@ -123,74 +192,251 @@ struct SubcategoryView: View {
                 }
             }
 
-            // Items section (ingredients / activities)
-            Section {
-                if items.isEmpty {
-                    emptyItemsHint
+            if !allRows.isEmpty {
+                ForEach(allRows) { row in
+                    rowView(for: row)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                } else {
-                    ForEach(items) { item in
-                        HStack(spacing: 12) {
-                            if isSelecting {
-                                Image(systemName: selectedIDs.contains(item.id)
-                                      ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(selectedIDs.contains(item.id)
-                                                     ? Color(hex: category.colorHex1) : .white.opacity(0.3))
-                                    .onTapGesture {
-                                        withAnimation {
-                                            if selectedIDs.contains(item.id) {
-                                                selectedIDs.remove(item.id)
-                                            } else {
-                                                selectedIDs.insert(item.id)
-                                            }
-                                        }
-                                    }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task { await deleteRow(row) }
+                            } label: {
+                                Label("Ta bort", systemImage: "trash")
                             }
-                            ListItemRow(item: item, category: category) {
-                                if isSelecting {
-                                    withAnimation {
-                                        if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
-                                        else { selectedIDs.insert(item.id) }
-                                    }
-                                } else {
-                                    Task { await viewModel.toggleItem(item, in: subcategory) }
-                                }
-                            }
+                            .tint(.red)
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .contextMenu {
-                            if !isSelecting {
-                                Button {
-                                    itemToEdit = item
-                                } label: {
-                                    Label("Ändra", systemImage: "pencil")
-                                }
-                                Button(role: .destructive) {
-                                    Task { await viewModel.deleteItem(item, from: subcategory) }
-                                } label: {
-                                    Label("Ta bort", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                    .onMove { from, to in
-                        viewModel.moveItem(in: subcategory, fromOffsets: from, toOffset: to)
-                    }
                 }
-            } header: {
-                if let label = category.itemsLabel {
-                    sectionHeader(label)
+                .onMove { from, to in
+                    handleMove(from: from, to: to)
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
         .environment(\.editMode, $editMode)
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
+    }
+
+    @ViewBuilder
+    private func rowView(for row: RowEntry) -> some View {
+        switch row {
+        case .category(let child): childRow(child)
+        case .item(let item):      itemRow(item)
+        case .block(let block):    blockView(block)
+        }
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: TripBlock) -> some View {
+        switch block.type {
+        case .note:         NoteBlockCard(block: block, category: category)
+        case .checklist:    ChecklistBlockCard(block: block, category: category)
+        case .photos:       PhotoBlockCard(block: block, category: category)
+        case .list:         ListBlockCard(block: block, category: category)
+        case .monthlyCosts: MonthlyCostsBlockCard(block: block, category: category)
+        case .budget:       BudgetBlockCard(block: block, category: category)
+        }
+    }
+
+    private func deleteRow(_ row: RowEntry) async {
+        switch row {
+        case .category(let child): await viewModel.deleteSubcategory(child, from: category)
+        case .item(let item):      await viewModel.deleteItem(item, from: subcategory)
+        case .block(let block):    await viewModel.deleteBlock(block)
+        }
+    }
+
+    private func handleMove(from source: IndexSet, to destination: Int) {
+        var arr = allRows
+        arr.move(fromOffsets: source, toOffset: destination)
+        for (idx, row) in arr.enumerated() {
+            switch row {
+            case .category(let sub):
+                viewModel.updateSubcategoryOrder(sub.id, in: category, to: idx)
+            case .item(let item):
+                viewModel.updateItemOrder(item.id, in: subcategory, to: idx)
+            case .block(let block):
+                viewModel.updateBlockOrder(block.id, in: subcategory, to: idx)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func itemRow(_ item: ListItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            if isSelecting {
+                Button { toggleSelection(item.id) } label: {
+                    Image(systemName: selectedIDs.contains(item.id)
+                          ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 22))
+                        .foregroundColor(selectedIDs.contains(item.id)
+                                         ? Color(hex: category.colorHex1) : .white.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+
+            if category.isCheckable {
+                Button {
+                    if isSelecting { toggleSelection(item.id) }
+                    else { Task { await viewModel.toggleItem(item, in: subcategory) } }
+                } label: {
+                    checkboxView(for: item)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Button {
+                    if isSelecting { toggleSelection(item.id) }
+                    else { itemToEdit = item }
+                } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(item.title)
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundColor(category.isCheckable && item.isCompleted
+                                             ? .white.opacity(0.35) : .white)
+                            .strikethrough(category.isCheckable && item.isCompleted,
+                                           color: .white.opacity(0.3))
+                            .multilineTextAlignment(.leading)
+                        if !item.notes.isEmpty {
+                            Text(item.notes)
+                                .font(.system(size: 13, design: .rounded))
+                                .foregroundColor(.white.opacity(0.45))
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if !item.url.isEmpty, let url = URL(string: item.url) {
+                    Button { openURL(url) } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "link").font(.system(size: 11))
+                            Text(url.host ?? item.url)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(Color(hex: category.colorHex1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contextMenu {
+            if !isSelecting {
+                Button { itemToEdit = item } label: {
+                    Label("Ändra", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    Task { await viewModel.deleteItem(item, from: subcategory) }
+                } label: {
+                    Label("Ta bort", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func checkboxView(for item: ListItem) -> some View {
+        ZStack {
+            Circle()
+                .strokeBorder(
+                    item.isCompleted ? Color(hex: category.colorHex1) : Color.white.opacity(0.25),
+                    lineWidth: 2
+                )
+                .frame(width: 26, height: 26)
+            if item.isCompleted {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(hex: category.colorHex1), Color(hex: category.colorHex2)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 20, height: 20)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .contentShape(Rectangle().inset(by: -8))
+    }
+
+    private func toggleSelection(_ id: UUID) {
+        withAnimation {
+            if selectedIDs.contains(id) { selectedIDs.remove(id) }
+            else { selectedIDs.insert(id) }
+        }
+    }
+
+    @ViewBuilder
+    private func childRow(_ child: OursSubcategory) -> some View {
+        NavigationLink {
+            SubcategoryView(subcategory: child, category: category)
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(LinearGradient(
+                            colors: [Color(hex: category.colorHex1).opacity(0.22),
+                                     Color(hex: category.colorHex2).opacity(0.12)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: child.iconName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(hex: category.colorHex1))
+                }
+                Text(child.name)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+                let count = childCount(of: child)
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                renameText = child.name
+                subToRename = child
+            } label: {
+                Label("Ändra namn", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                Task { await viewModel.deleteSubcategory(child, from: category) }
+            } label: {
+                Label("Ta bort kategori", systemImage: "trash")
+            }
+        }
+    }
+
+    private func childCount(of sub: OursSubcategory) -> Int {
+        let kids = viewModel.childSubcategories(of: sub).count
+        let its = (viewModel.itemsBySubcategory[sub.id] ?? []).count
+        return kids + its
     }
 
     // MARK: - Note editor card
@@ -220,24 +466,40 @@ struct SubcategoryView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    // MARK: - Empty items hint (shown inside list when items are empty but note section exists)
+    // MARK: - Quick-add bar (always visible at bottom)
 
-    private var emptyItemsHint: some View {
-        Button { showAddItem = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: category.colorHex1).opacity(0.7))
-                Text(category.itemsLabel == "Ingredienser" ? "Lägg till ingrediens" : "Lägg till aktivitet")
-                    .font(.system(size: 15, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.cardBackground.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+    private var quickAddBar: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Color(hex: category.colorHex1).opacity(0.65))
+            TextField("",
+                      text: $quickAddText,
+                      prompt: Text("Lägg till sak…").foregroundColor(.white.opacity(0.3)))
+                .font(.system(size: 16, design: .rounded))
+                .foregroundColor(.white)
+                .focused($quickAddFocused)
+                .onSubmit { commitQuickAdd() }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(Color.cardBackground)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(.white.opacity(0.06)),
+            alignment: .top
+        )
+    }
+
+    private func commitQuickAdd() {
+        let t = quickAddText.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        quickAddText = ""
+        Task {
+            await viewModel.addItem(title: t, notes: "", url: "", to: subcategory)
+            quickAddFocused = true
+        }
     }
 
     // MARK: - Section header
@@ -269,79 +531,3 @@ struct SubcategoryView: View {
     }
 }
 
-// MARK: - List Item Row
-
-struct ListItemRow: View {
-    let item: ListItem
-    let category: OursCategory
-    let onToggle: () -> Void
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            if category.isCheckable {
-                Button(action: onToggle) {
-                    ZStack {
-                        Circle()
-                            .strokeBorder(
-                                item.isCompleted
-                                    ? Color(hex: category.colorHex1)
-                                    : Color.white.opacity(0.25),
-                                lineWidth: 2
-                            )
-                            .frame(width: 26, height: 26)
-
-                        if item.isCompleted {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color(hex: category.colorHex1), Color(hex: category.colorHex2)],
-                                        startPoint: .topLeading, endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 20, height: 20)
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .padding(.top, 2)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.title)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(category.isCheckable && item.isCompleted ? .white.opacity(0.35) : .white)
-                    .strikethrough(category.isCheckable && item.isCompleted, color: .white.opacity(0.3))
-
-                if !item.notes.isEmpty {
-                    Text(item.notes)
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundColor(.white.opacity(0.45))
-                        .lineLimit(3)
-                }
-
-                if !item.url.isEmpty, let url = URL(string: item.url) {
-                    Button { openURL(url) } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "link")
-                                .font(.system(size: 11))
-                            Text(url.host ?? item.url)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                        }
-                        .foregroundColor(Color(hex: category.colorHex1))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(16)
-        .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: item.isCompleted)
-    }
-}

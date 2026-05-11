@@ -12,4 +12,3 @@ build/
 *.dSYM
 Pods/
 .swiftpm/
-GoogleService-Info.plist

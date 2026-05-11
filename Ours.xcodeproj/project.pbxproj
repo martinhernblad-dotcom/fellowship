@@ -19,11 +19,29 @@
 		89F18327F67A41DE9E0AA45C /* TripDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0EE194721D4BAE9D4BF3B9 /* TripDetailView.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* CormorantGaramond-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978869504132 /* CormorantGaramond-SemiBold.ttf */; };
 		A22AAE0E33114735815B8C68 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CD24EDF8374A1BA351ABF7 /* Color+Hex.swift */; };
+		AA00001122334455667701BB /* FellowshipTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667702CC /* FellowshipTheme.swift */; };
+		AA00001122334455667703DD /* ShoppingIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667704EE /* ShoppingIcon.swift */; };
+		AA00001122334455667705FF /* ResorIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667706AA /* ResorIcon.swift */; };
+		AA00001122334455667707BB /* EkonomiIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667708CC /* EkonomiIcon.swift */; };
+		AA00001122334455667709DD /* KoderIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566770AEE /* KoderIcon.swift */; };
+		AA0000112233445566770BFF /* DiscoverIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566770CAA /* DiscoverIcon.swift */; };
+		AA0000112233445566770DBB /* ReceptIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566770ECC /* ReceptIcon.swift */; };
+		AA00001122334455667710BB /* RecipeDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667711CC /* RecipeDraft.swift */; };
+		AA00001122334455667712DD /* RecipeIngredientParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667713EE /* RecipeIngredientParser.swift */; };
+		AA00001122334455667714FF /* RecipeURLImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667715AA /* RecipeURLImporter.swift */; };
+		AA00001122334455667716BB /* RecipePhotoImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667717CC /* RecipePhotoImporter.swift */; };
+		AA00001122334455667718DD /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001122334455667719EE /* ImagePicker.swift */; };
+		AA0000112233445566771AFF /* RecipeImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566771BAA /* RecipeImportSheet.swift */; };
+		AA0000112233445566771CBB /* LineCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000112233445566771DCC /* LineCategoryIcon.swift */; };
 		AA11BB22CC33DD44EE55FF66 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF6600AA /* PairingView.swift */; };
 		B8C333A57E004123B075F177 /* CategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE37E50521FB4EB993EF5AC6 /* CategoryView.swift */; };
 		B8EC860B29FD4F17B0E728AB /* SubcategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2051027ECE43319A8E3DDE /* SubcategoryView.swift */; };
+		BB33CC44DD55EE66FF7700AA /* CormorantGaramond-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA22BB33CC44DD55EE66FF77 /* CormorantGaramond-Medium.ttf */; };
 		C38DB51C15394A5C91639B80 /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F461F2AC5C479AB491EE35 /* CloudKitService.swift */; };
 		C8B6863CA8544581B8FB904E /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA45C7AF3A743E193534DAB /* AppModels.swift */; };
+		CC44DD55EE66FF7700AA11BB /* EkonomiView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD55EE66FF7700AA11BB22CC /* EkonomiView.swift */; };
+		DD55EE66FF7700AABB22CC33 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CC44DD55EE66FF7700AABB11 /* JetBrainsMono-Regular.ttf */; };
+		EE77FF8800AA11BB22CC3344 /* ClayIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF8800AA11BB22CC33DD4455 /* ClayIcon.swift */; };
 		F0FA77ADB2AA4D1CB46A1BB7 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E719FEBE6F471682055A15 /* AppViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -37,16 +55,34 @@
 		67E719FEBE6F471682055A15 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppViewModel.swift; path = Ours/ViewModels/AppViewModel.swift; sourceTree = SOURCE_ROOT; };
 		9F3286B600F544DEA44F23B4 /* AddBlockSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AddBlockSheet.swift; path = Ours/Views/AddBlockSheet.swift; sourceTree = SOURCE_ROOT; };
 		A4FD1527282B48B187895B1C /* Ours.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ours.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00001122334455667702CC /* FellowshipTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FellowshipTheme.swift; path = Ours/Views/FellowshipTheme.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667704EE /* ShoppingIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShoppingIcon.swift; path = Ours/Views/ShoppingIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667706AA /* ResorIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ResorIcon.swift; path = Ours/Views/ResorIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667708CC /* EkonomiIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EkonomiIcon.swift; path = Ours/Views/EkonomiIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566770AEE /* KoderIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = KoderIcon.swift; path = Ours/Views/KoderIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566770CAA /* DiscoverIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DiscoverIcon.swift; path = Ours/Views/DiscoverIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566770ECC /* ReceptIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ReceptIcon.swift; path = Ours/Views/ReceptIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667711CC /* RecipeDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipeDraft.swift; path = Ours/Models/RecipeDraft.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667713EE /* RecipeIngredientParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipeIngredientParser.swift; path = Ours/Services/RecipeIngredientParser.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667715AA /* RecipeURLImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipeURLImporter.swift; path = Ours/Services/RecipeURLImporter.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667717CC /* RecipePhotoImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipePhotoImporter.swift; path = Ours/Services/RecipePhotoImporter.swift; sourceTree = SOURCE_ROOT; };
+		AA00001122334455667719EE /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ImagePicker.swift; path = Ours/Views/ImagePicker.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566771BAA /* RecipeImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecipeImportSheet.swift; path = Ours/Views/RecipeImportSheet.swift; sourceTree = SOURCE_ROOT; };
+		AA0000112233445566771DCC /* LineCategoryIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineCategoryIcon.swift; path = Ours/Views/LineCategoryIcon.swift; sourceTree = SOURCE_ROOT; };
+		AA22BB33CC44DD55EE66FF77 /* CormorantGaramond-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "CormorantGaramond-Medium.ttf"; path = "Ours/Fonts/CormorantGaramond-Medium.ttf"; sourceTree = SOURCE_ROOT; };
 		B1801DDC4BA24186B4FA86E8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Ours/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		BB22CC33DD44EE55FF6600AA /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PairingView.swift; path = Ours/Views/PairingView.swift; sourceTree = SOURCE_ROOT; };
 		C8F461F2AC5C479AB491EE35 /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudKitService.swift; path = Ours/Services/CloudKitService.swift; sourceTree = SOURCE_ROOT; };
 		CB53715C0EE743DE84089A79 /* OursApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OursApp.swift; path = Ours/OursApp.swift; sourceTree = SOURCE_ROOT; };
+		CC44DD55EE66FF7700AABB11 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "JetBrainsMono-Regular.ttf"; path = "Ours/Fonts/JetBrainsMono-Regular.ttf"; sourceTree = SOURCE_ROOT; };
 		D537750443184CBF918CA9F1 /* AddItemSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AddItemSheet.swift; path = Ours/Views/AddItemSheet.swift; sourceTree = SOURCE_ROOT; };
+		DD55EE66FF7700AA11BB22CC /* EkonomiView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EkonomiView.swift; path = Ours/Views/EkonomiView.swift; sourceTree = SOURCE_ROOT; };
 		DEF1D1C9E53C4C3DA1D144DD /* AddSubcategorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AddSubcategorySheet.swift; path = Ours/Views/AddSubcategorySheet.swift; sourceTree = SOURCE_ROOT; };
 		F1E2D3C4B5A6978869504132 /* CormorantGaramond-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "CormorantGaramond-SemiBold.ttf"; path = "Ours/Fonts/CormorantGaramond-SemiBold.ttf"; sourceTree = SOURCE_ROOT; };
 		F30C8ADC648A4092B33C2593 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HomeView.swift; path = Ours/Views/HomeView.swift; sourceTree = SOURCE_ROOT; };
 		FE2051027ECE43319A8E3DDE /* SubcategoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SubcategoryView.swift; path = Ours/Views/SubcategoryView.swift; sourceTree = SOURCE_ROOT; };
 		FE37E50521FB4EB993EF5AC6 /* CategoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CategoryView.swift; path = Ours/Views/CategoryView.swift; sourceTree = SOURCE_ROOT; };
+		FF8800AA11BB22CC33DD4455 /* ClayIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ClayIcon.swift; path = Ours/Views/ClayIcon.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				0CA45C7AF3A743E193534DAB /* AppModels.swift */,
+				AA00001122334455667711CC /* RecipeDraft.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -105,6 +142,14 @@
 			isa = PBXGroup;
 			children = (
 				F30C8ADC648A4092B33C2593 /* HomeView.swift */,
+				FF8800AA11BB22CC33DD4455 /* ClayIcon.swift */,
+				AA00001122334455667702CC /* FellowshipTheme.swift */,
+				AA00001122334455667704EE /* ShoppingIcon.swift */,
+				AA00001122334455667706AA /* ResorIcon.swift */,
+				AA00001122334455667708CC /* EkonomiIcon.swift */,
+				AA0000112233445566770AEE /* KoderIcon.swift */,
+				AA0000112233445566770CAA /* DiscoverIcon.swift */,
+				AA0000112233445566770ECC /* ReceptIcon.swift */,
 				FE37E50521FB4EB993EF5AC6 /* CategoryView.swift */,
 				FE2051027ECE43319A8E3DDE /* SubcategoryView.swift */,
 				DEF1D1C9E53C4C3DA1D144DD /* AddSubcategorySheet.swift */,
@@ -113,6 +158,10 @@
 				9F3286B600F544DEA44F23B4 /* AddBlockSheet.swift */,
 				5C0C9141DE6446999D1381C6 /* ProfileSetupView.swift */,
 				BB22CC33DD44EE55FF6600AA /* PairingView.swift */,
+				DD55EE66FF7700AA11BB22CC /* EkonomiView.swift */,
+				AA00001122334455667719EE /* ImagePicker.swift */,
+				AA0000112233445566771BAA /* RecipeImportSheet.swift */,
+				AA0000112233445566771DCC /* LineCategoryIcon.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -121,6 +170,9 @@
 			isa = PBXGroup;
 			children = (
 				C8F461F2AC5C479AB491EE35 /* CloudKitService.swift */,
+				AA00001122334455667713EE /* RecipeIngredientParser.swift */,
+				AA00001122334455667715AA /* RecipeURLImporter.swift */,
+				AA00001122334455667717CC /* RecipePhotoImporter.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -137,6 +189,8 @@
 			isa = PBXGroup;
 			children = (
 				F1E2D3C4B5A6978869504132 /* CormorantGaramond-SemiBold.ttf */,
+				AA22BB33CC44DD55EE66FF77 /* CormorantGaramond-Medium.ttf */,
+				CC44DD55EE66FF7700AABB11 /* JetBrainsMono-Regular.ttf */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -213,6 +267,8 @@
 			files = (
 				6F98A48F14A64F109CDAEA98 /* Assets.xcassets in Resources */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* CormorantGaramond-SemiBold.ttf in Resources */,
+				BB33CC44DD55EE66FF7700AA /* CormorantGaramond-Medium.ttf in Resources */,
+				DD55EE66FF7700AABB22CC33 /* JetBrainsMono-Regular.ttf in Resources */,
 				122336F82FACE07500C202C7 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -229,6 +285,14 @@
 				C38DB51C15394A5C91639B80 /* CloudKitService.swift in Sources */,
 				F0FA77ADB2AA4D1CB46A1BB7 /* AppViewModel.swift in Sources */,
 				54643A6AB6E34FB49D200AB4 /* HomeView.swift in Sources */,
+				EE77FF8800AA11BB22CC3344 /* ClayIcon.swift in Sources */,
+				AA00001122334455667701BB /* FellowshipTheme.swift in Sources */,
+				AA00001122334455667703DD /* ShoppingIcon.swift in Sources */,
+				AA00001122334455667705FF /* ResorIcon.swift in Sources */,
+				AA00001122334455667707BB /* EkonomiIcon.swift in Sources */,
+				AA00001122334455667709DD /* KoderIcon.swift in Sources */,
+				AA0000112233445566770BFF /* DiscoverIcon.swift in Sources */,
+				AA0000112233445566770DBB /* ReceptIcon.swift in Sources */,
 				B8C333A57E004123B075F177 /* CategoryView.swift in Sources */,
 				B8EC860B29FD4F17B0E728AB /* SubcategoryView.swift in Sources */,
 				234BBCA996F842F182E37FF1 /* AddSubcategorySheet.swift in Sources */,
@@ -238,6 +302,14 @@
 				0B0BEF6C7F4941DB9ACB9661 /* AddBlockSheet.swift in Sources */,
 				A22AAE0E33114735815B8C68 /* Color+Hex.swift in Sources */,
 				AA11BB22CC33DD44EE55FF66 /* PairingView.swift in Sources */,
+				CC44DD55EE66FF7700AA11BB /* EkonomiView.swift in Sources */,
+				AA00001122334455667710BB /* RecipeDraft.swift in Sources */,
+				AA00001122334455667712DD /* RecipeIngredientParser.swift in Sources */,
+				AA00001122334455667714FF /* RecipeURLImporter.swift in Sources */,
+				AA00001122334455667716BB /* RecipePhotoImporter.swift in Sources */,
+				AA00001122334455667718DD /* ImagePicker.swift in Sources */,
+				AA0000112233445566771AFF /* RecipeImportSheet.swift in Sources */,
+				AA0000112233445566771CBB /* LineCategoryIcon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -250,7 +322,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ours/Ours.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = R4JS7Y3H9L;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Ours/Info.plist;
@@ -386,7 +458,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Ours/Ours.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = R4JS7Y3H9L;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Ours/Info.plist;

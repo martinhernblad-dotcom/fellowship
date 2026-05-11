@@ -1,19 +1,26 @@
 import SwiftUI
 import CoreText
 import FirebaseCore
+import UIKit
 
-@main
-struct FellowshipApp: App {
-    @StateObject private var viewModel = AppViewModel()
-    @Environment(\.scenePhase) private var scenePhase
-
-    init() {
+final class FellowshipAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions:
+                     [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         FirebaseApp.configure()
         if let url = Bundle.main.url(forResource: "CormorantGaramond-SemiBold", withExtension: "ttf") {
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
         }
+        return true
     }
+}
+
+@main
+struct FellowshipApp: App {
+    @UIApplicationDelegateAdaptor(FellowshipAppDelegate.self) var appDelegate
+    @StateObject private var viewModel = AppViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {

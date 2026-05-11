@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddSubcategorySheet: View {
     let category: OursCategory
+    let parent: OursSubcategory?
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
 
@@ -10,9 +11,17 @@ struct AddSubcategorySheet: View {
     @State private var selectedIcon: String
     @State private var isSaving     = false
 
-    init(category: OursCategory) {
+    init(category: OursCategory, parent: OursSubcategory? = nil) {
         self.category = category
+        self.parent = parent
         _selectedIcon = State(initialValue: category.suggestedIcons.first ?? "folder.fill")
+    }
+
+    private var navTitle: String {
+        if let parent {
+            return "Kategori i \(parent.name)"
+        }
+        return category.addListTitle
     }
 
     private var accent: Color { Color(hex: category.colorHex1) }
@@ -86,6 +95,7 @@ struct AddSubcategorySheet: View {
                                     name: name.trimmingCharacters(in: .whitespaces),
                                     iconName: selectedIcon,
                                     note: noteText,
+                                    parentSubcategoryID: parent?.id,
                                     to: category
                                 )
                                 dismiss()
@@ -117,7 +127,7 @@ struct AddSubcategorySheet: View {
                     .padding(20)
                 }
             }
-            .navigationTitle(category.addListTitle)
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

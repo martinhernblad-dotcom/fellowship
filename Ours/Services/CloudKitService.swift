@@ -10,6 +10,9 @@ final class CloudKitService {
 
     private let store = LocalStore.shared
     private var db: Firestore { Firestore.firestore() }
+    private var listeners: [ListenerRegistration] = []
+
+    var onDataChanged: (@MainActor () -> Void)?
 
     var coupleID: String? {
         get { UserDefaults.standard.string(forKey: "fellowship_couple_id") }
@@ -89,8 +92,60 @@ final class CloudKitService {
     }
 
     func setupSubscriptions() async {
-        // Firestore has real-time listeners; for background sync we rely on
-        // pull-on-foreground in OursApp. Full real-time can be added later.
+        guard let cid = coupleID else { return }
+        guard listeners.isEmpty else { return }
+
+        let collections = ["subcategories", "items", "tripBlocks", "tripCheckItems", "profiles", "deletions"]
+        for collection in collections {
+            let listener = db.collection("couples").document(cid).collection(collection)
+                .addSnapshotListener { [weak self] snap, _ in
+                    guard let self, let snap else { return }
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.processSnapshot(snap, collection: collection)
+                        self.onDataChanged?()
+                    }
+                }
+            listeners.append(listener)
+        }
+    }
+
+    private func processSnapshot(_ snap: QuerySnapshot, collection: String) {
+        var changed = false
+        for change in snap.documentChanges {
+            let data = change.document.data()
+            switch change.type {
+            case .added, .modified:
+                applyMerge(data: data, collection: collection)
+                changed = true
+            case .removed:
+                if let id = data["id"] as? String {
+                    store.applyDeletion(collection: collection, id: id)
+                    changed = true
+                }
+            }
+        }
+        if changed { store.save() }
+    }
+
+    private func applyMerge(data: [String: Any], collection: String) {
+        switch collection {
+        case "subcategories":
+            if let v = OursSubcategory(fs: data) { store.merge(v) }
+        case "items":
+            if let v = ListItem(fs: data) { store.merge(v) }
+        case "tripBlocks":
+            if let v = TripBlock(fs: data) { store.merge(v) }
+        case "tripCheckItems":
+            if let v = TripCheckItem(fs: data) { store.merge(v) }
+        case "profiles":
+            if let v = UserProfile(fs: data) { store.merge(v) }
+        case "deletions":
+            if let col = data["collection"] as? String, let id = data["id"] as? String {
+                store.applyDeletion(collection: col, id: id)
+            }
+        default: break
+        }
     }
 
     // MARK: - Categories
@@ -134,14 +189,18 @@ final class CloudKitService {
     }
 
     func deleteSubcategory(_ sub: OursSubcategory) async throws {
-        let blockIDs = store.tripBlocks.filter { $0.tripID == sub.id }.map(\.id)
-        store.subcategories.removeAll   { $0.id == sub.id }
-        store.items.removeAll           { $0.subcategoryID == sub.id }
-        store.tripBlocks.removeAll      { $0.tripID == sub.id }
+        let descendantIDs = store.descendantSubcategoryIDs(of: sub.id)
+        let allIDs = Set([sub.id] + descendantIDs)
+        let blockIDs = store.tripBlocks.filter { allIDs.contains($0.tripID) }.map(\.id)
+        store.subcategories.removeAll   { allIDs.contains($0.id) }
+        store.items.removeAll           { allIDs.contains($0.subcategoryID) }
+        store.tripBlocks.removeAll      { allIDs.contains($0.tripID) }
         store.tripCheckItems.removeAll  { blockIDs.contains($0.blockID) }
         store.save()
-        fsDelete("subcategories", id: sub.id.uuidString)
-        fsTombstone("subcategories", id: sub.id.uuidString)
+        for id in allIDs {
+            fsDelete("subcategories", id: id.uuidString)
+            fsTombstone("subcategories", id: id.uuidString)
+        }
     }
 
     // MARK: - Items
@@ -243,10 +302,15 @@ final class CloudKitService {
 // MARK: - Firestore mapping
 
 private extension OursSubcategory {
-    func toFirestore() -> [String: Any] {[
-        "id": id.uuidString, "categoryID": categoryID.uuidString,
-        "name": name, "iconName": iconName, "order": order, "note": note
-    ]}
+    func toFirestore() -> [String: Any] {
+        var d: [String: Any] = [
+            "id": id.uuidString, "categoryID": categoryID.uuidString,
+            "name": name, "iconName": iconName, "order": order, "note": note,
+            "portions": portions
+        ]
+        if let p = parentSubcategoryID { d["parentSubcategoryID"] = p.uuidString }
+        return d
+    }
     init?(fs d: [String: Any]) {
         guard let idStr  = d["id"]         as? String, let id     = UUID(uuidString: idStr),
               let catStr = d["categoryID"] as? String, let catID  = UUID(uuidString: catStr)
@@ -256,6 +320,12 @@ private extension OursSubcategory {
         self.iconName = d["iconName"] as? String ?? "folder.fill"
         self.order    = d["order"]    as? Int    ?? 0
         self.note     = d["note"]     as? String ?? ""
+        self.portions = d["portions"] as? Int    ?? 1
+        if let pStr = d["parentSubcategoryID"] as? String, let pID = UUID(uuidString: pStr) {
+            self.parentSubcategoryID = pID
+        } else {
+            self.parentSubcategoryID = nil
+        }
     }
 }
 
@@ -373,23 +443,61 @@ final class LocalStore {
         else { profiles.append(profile) }
     }
 
+    func descendantSubcategoryIDs(of parentID: UUID) -> [UUID] {
+        var result: [UUID] = []
+        var frontier: [UUID] = [parentID]
+        while let current = frontier.popLast() {
+            let kids = subcategories.filter { $0.parentSubcategoryID == current }.map(\.id)
+            result.append(contentsOf: kids)
+            frontier.append(contentsOf: kids)
+        }
+        return result
+    }
+
     func applyDeletion(collection: String, id: String) {
         guard let uuid = UUID(uuidString: id) else { return }
         switch collection {
         case "subcategories":
-            let blockIDs = tripBlocks.filter { $0.tripID == uuid }.map(\.id)
-            subcategories.removeAll  { $0.id == uuid }
-            items.removeAll          { $0.subcategoryID == uuid }
-            tripBlocks.removeAll     { $0.tripID == uuid }
+            let descendantIDs = descendantSubcategoryIDs(of: uuid)
+            let allIDs = Set([uuid] + descendantIDs)
+            let blockIDs = tripBlocks.filter { allIDs.contains($0.tripID) }.map(\.id)
+            let photoFilenames = collectPhotoFilenames(blockIDs: blockIDs)
+            subcategories.removeAll  { allIDs.contains($0.id) }
+            items.removeAll          { allIDs.contains($0.subcategoryID) }
+            tripBlocks.removeAll     { allIDs.contains($0.tripID) }
             tripCheckItems.removeAll { blockIDs.contains($0.blockID) }
+            deleteLocalPhotoFiles(photoFilenames)
         case "items":
             items.removeAll { $0.id == uuid }
         case "tripBlocks":
+            let photoFilenames = collectPhotoFilenames(blockIDs: [uuid])
             tripCheckItems.removeAll { $0.blockID == uuid }
             tripBlocks.removeAll     { $0.id == uuid }
+            deleteLocalPhotoFiles(photoFilenames)
         case "tripCheckItems":
             tripCheckItems.removeAll { $0.id == uuid }
         default: break
+        }
+    }
+
+    private func collectPhotoFilenames(blockIDs: [UUID]) -> [String] {
+        let ids = Set(blockIDs)
+        return tripBlocks
+            .filter { ids.contains($0.id) && $0.type == .photos }
+            .flatMap { block -> [String] in
+                guard let data = block.text.data(using: .utf8),
+                      let names = try? JSONDecoder().decode([String].self, from: data)
+                else { return [] }
+                return names
+            }
+    }
+
+    private func deleteLocalPhotoFiles(_ filenames: [String]) {
+        guard !filenames.isEmpty else { return }
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("recipe_photos", isDirectory: true)
+        for filename in filenames {
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(filename))
         }
     }
 

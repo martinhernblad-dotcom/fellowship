@@ -22,12 +22,18 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>UIAppFonts</key>
     <array>
         <string>CormorantGaramond-SemiBold.ttf</string>
+        <string>CormorantGaramond-Medium.ttf</string>
+        <string>JetBrainsMono-Regular.ttf</string>
     </array>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Lägg till foton till dina recept.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Ta foto av en kokboksida för att läsa in recept automatiskt.</string>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>
     <key>UILaunchScreen</key>

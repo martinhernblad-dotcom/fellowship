@@ -61,6 +61,22 @@ extension OursCategory {
         id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
     }
 
+    // Recipes are atomic. Ekonomi has fixed sections per person. Everything else can nest.
+    var allowsNestedSubcategories: Bool {
+        let recept  = UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
+        let ekonomi = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        return id != recept && id != ekonomi
+    }
+
+    var useEkonomiView: Bool {
+        id == UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+    }
+
+    var availableBlockTypes: [TripBlockType] {
+        if useEkonomiView { return [.budget, .checklist, .note, .list, .monthlyCosts] }
+        return [.checklist, .note, .photos]
+    }
+
     // Koder & Info is reference material — no point ticking items off
     var isCheckable: Bool {
         id != UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
@@ -135,16 +151,21 @@ struct OursSubcategory: Identifiable, Hashable, Codable {
     var order: Int
     var categoryID: UUID
     var note: String    // instructions for recipes, trip notes for travel
+    var parentSubcategoryID: UUID?
+    var portions: Int   // recipe servings indicator (1 for non-recipes)
 
     init(id: UUID = UUID(), name: String, iconName: String = "folder.fill",
-         order: Int = 0, categoryID: UUID, note: String = "") {
+         order: Int = 0, categoryID: UUID, note: String = "",
+         parentSubcategoryID: UUID? = nil,
+         portions: Int = 1) {
         self.id = id; self.name = name; self.iconName = iconName
         self.order = order; self.categoryID = categoryID; self.note = note
+        self.parentSubcategoryID = parentSubcategoryID
+        self.portions = portions
     }
 
-    // Backward-compatible decode: existing JSON won't have 'note'
     enum CodingKeys: String, CodingKey {
-        case id, name, iconName, order, categoryID, note
+        case id, name, iconName, order, categoryID, note, parentSubcategoryID, portions
     }
 
     init(from decoder: Decoder) throws {
@@ -155,6 +176,8 @@ struct OursSubcategory: Identifiable, Hashable, Codable {
         order      = try c.decode(Int.self,    forKey: .order)
         categoryID = try c.decode(UUID.self,   forKey: .categoryID)
         note       = (try? c.decode(String.self, forKey: .note)) ?? ""
+        parentSubcategoryID = try? c.decode(UUID.self, forKey: .parentSubcategoryID)
+        portions   = (try? c.decode(Int.self, forKey: .portions)) ?? 1
     }
 }
 
@@ -185,6 +208,9 @@ enum TripBlockType: String, Codable {
     case checklist
     case note
     case photos
+    case list
+    case monthlyCosts
+    case budget
 }
 
 struct TripBlock: Identifiable, Hashable, Codable {
