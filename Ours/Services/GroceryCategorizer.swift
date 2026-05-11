@@ -43,12 +43,25 @@ enum ShoppingSection: Int, CaseIterable, Identifiable, Hashable {
 enum GroceryCategorizer {
 
     /// Maps a free-text item title to the section of the store you'd typically find it in.
-    /// Heuristic only — matches Swedish keywords with substring lookup.
+    /// Heuristic only — Swedish keyword lookup.
+    ///
+    /// Single-word keywords match on **whole-word token equality** (so "sake"
+    /// does not match inside "grönsaker"). Multi-word or hyphenated keywords
+    /// fall back to substring matching.
     static func section(for title: String) -> ShoppingSection {
         let lower = title.lowercased()
+        let tokens = Set(
+            lower.components(separatedBy: CharacterSet.letters.inverted)
+                 .filter { !$0.isEmpty }
+        )
         for (section, keywords) in keywordTable {
-            if keywords.contains(where: { lower.contains($0) }) {
-                return section
+            for keyword in keywords {
+                let isMultiPart = keyword.contains(" ") || keyword.contains("-")
+                if isMultiPart {
+                    if lower.contains(keyword) { return section }
+                } else if tokens.contains(keyword) {
+                    return section
+                }
             }
         }
         return .ovrigt
@@ -61,6 +74,8 @@ enum GroceryCategorizer {
             "fryst", "frusen", "frysta", "fryspizza", "glass", "isbitar"
         ]),
         (.fruktOchGront, [
+            "frukt", "frukter", "grönt", "grönsak", "grönsaker", "bär",
+            "rotsaker", "kålgrönt", "sallad", "sallader",
             "äpple", "äpplen", "banan", "apelsin", "citron", "lime", "klementin",
             "vindruvor", "päron", "ananas", "kiwi", "mango", "avokado", "melon",
             "persika", "plommon", "körsbär", "dadlar",
@@ -87,6 +102,7 @@ enum GroceryCategorizer {
             "prinskorv", "bratwurst", "pålägg"
         ]),
         (.kottFagel, [
+            "kött", "färs",
             "nötfärs", "fläskfärs", "blandfärs", "köttfärs", "biff", "oxfilé",
             "fläskfilé", "fläskkarré", "kotletter", "stek", "lammkött",
             "lammkotletter", "kalvkött", "kyckling", "kycklingfilé",
@@ -94,6 +110,7 @@ enum GroceryCategorizer {
             "wallenbergare", "korv"
         ]),
         (.fiskSkaldjur, [
+            "fisk", "skaldjur",
             "lax", "gravad lax", "rökt lax", "torsk", "kolja", "sej", "gös",
             "abborre", "makrill", "sill", "strömming", "tonfisk", "kaviar",
             "rom", "räkor", "kräftor", "hummer", "krabba", "musslor", "ostron",
@@ -147,6 +164,7 @@ enum GroceryCategorizer {
             "ostbågar", "tortillachips"
         ]),
         (.dryck, [
+            "dryck", "drycker",
             "läsk", "coca-cola", "cola", "fanta", "sprite", "pepsi",
             "ramlösa", "loka", "vichy", "mineralvatten",
             "juice", "apelsinjuice", "äppeljuice", "saft", "smoothie",
