@@ -532,7 +532,7 @@ struct SubcategoryView: View {
                 .font(.system(size: 15, design: .rounded))
                 .foregroundColor(.white)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 110, maxHeight: 320)
+                .frame(height: 160)
                 .onChange(of: noteText) { _, newVal in
                     viewModel.updateNote(newVal, for: subcategory, in: category)
                 }

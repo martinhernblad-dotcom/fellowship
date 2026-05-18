@@ -324,7 +324,7 @@ struct NoteBlockCard: View {
                     .font(.system(size: 14, design: .rounded))
                     .foregroundColor(.white.opacity(0.85))
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 72, maxHeight: 400)
+                    .frame(height: 160)
                     .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
                 if text.isEmpty {
                     Text("Skriv anteckning…")
