@@ -38,7 +38,7 @@ struct SubcategoryView: View {
 
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea(.container)
 
             VStack(spacing: 0) {
                 Group {
@@ -532,7 +532,7 @@ struct SubcategoryView: View {
                 .font(.system(size: 15, design: .rounded))
                 .foregroundColor(.white)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 110)
+                .frame(minHeight: 110, maxHeight: 320)
                 .onChange(of: noteText) { _, newVal in
                     viewModel.updateNote(newVal, for: subcategory, in: category)
                 }

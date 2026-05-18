@@ -17,7 +17,7 @@ struct CategoryView: View {
 
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea(.container)
 
             Group {
                 if subcategories.isEmpty {

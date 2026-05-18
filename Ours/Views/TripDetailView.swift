@@ -41,7 +41,7 @@ struct TripDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea(.container)
             if hasContent { blockList } else { emptyState }
         }
         .navigationTitle(trip.name)
@@ -324,7 +324,7 @@ struct NoteBlockCard: View {
                     .font(.system(size: 14, design: .rounded))
                     .foregroundColor(.white.opacity(0.85))
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 72)
+                    .frame(minHeight: 72, maxHeight: 400)
                     .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
                 if text.isEmpty {
                     Text("Skriv anteckning…")
@@ -1359,7 +1359,7 @@ struct MonthlyCostsBlockCard: View {
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(.white.opacity(0.3))
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 60)
+                    .frame(minHeight: 60, maxHeight: 300)
                     .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
                 if text.isEmpty {
                     Text("Klistra in text här…")
@@ -1414,7 +1414,7 @@ struct ShoppingListPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
 
                 if isLoading {
                     ProgressView().tint(.white)

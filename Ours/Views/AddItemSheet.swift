@@ -21,7 +21,7 @@ struct AddItemSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
                 scrollContent
             }
             .navigationTitle("New Item")
@@ -174,7 +174,7 @@ struct EditItemSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 16) {
                         fieldLabel("NAMN")

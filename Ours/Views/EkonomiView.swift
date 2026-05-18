@@ -11,7 +11,7 @@ struct EkonomiView: View {
 
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea(.container)
 
             if sections.isEmpty {
                 ProgressView().tint(.white)

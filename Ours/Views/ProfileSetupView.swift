@@ -19,7 +19,7 @@ struct ProfileSetupView: View {
 
     var body: some View {
         ZStack {
-            Color.appBackground.ignoresSafeArea()
+            Color.appBackground.ignoresSafeArea(.container)
 
             VStack(spacing: 0) {
                 Spacer()

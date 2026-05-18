@@ -84,7 +84,7 @@ struct AddBlockSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 28) {

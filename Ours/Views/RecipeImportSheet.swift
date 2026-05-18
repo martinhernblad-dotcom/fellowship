@@ -32,7 +32,7 @@ struct RecipeImportSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
                 content
             }
             .navigationTitle(navTitle)
@@ -339,7 +339,7 @@ struct RecipeImportSheet: View {
                 .font(.system(size: 15))
                 .foregroundColor(.white)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 140)
+                .frame(minHeight: 140, maxHeight: 360)
             if draft.instructions.isEmpty {
                 Text(category.notePlaceholder)
                     .font(.system(size: 15))

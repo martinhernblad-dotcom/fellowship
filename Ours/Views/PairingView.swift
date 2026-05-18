@@ -16,7 +16,7 @@ struct PairingView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.appBackground.ignoresSafeArea()
+                Color.appBackground.ignoresSafeArea(.container)
                 content
             }
             .navigationTitle("Anslut till partner")
