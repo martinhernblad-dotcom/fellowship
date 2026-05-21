@@ -429,6 +429,29 @@ struct SubcategoryView: View {
                 Button { itemToEdit = item } label: {
                     Label("Ändra", systemImage: "pencil")
                 }
+                // Move down into a child subcategory
+                let destinations = children
+                if !destinations.isEmpty {
+                    Menu {
+                        ForEach(destinations) { child in
+                            Button {
+                                viewModel.moveItem(item, to: child)
+                            } label: {
+                                Label(child.name, systemImage: child.iconName)
+                            }
+                        }
+                    } label: {
+                        Label("Flytta till…", systemImage: "arrow.turn.down.right")
+                    }
+                }
+                // Move up to parent subcategory
+                if let parent = viewModel.parentSubcategory(of: subcategory) {
+                    Button {
+                        viewModel.moveItem(item, to: parent)
+                    } label: {
+                        Label("Flytta upp", systemImage: "arrow.turn.up.left")
+                    }
+                }
                 Button(role: .destructive) {
                     Task { await viewModel.deleteItem(item, from: subcategory) }
                 } label: {

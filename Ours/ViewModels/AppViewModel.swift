@@ -331,6 +331,30 @@ final class AppViewModel: ObservableObject {
         Task { for item in its { _ = try? await cloudKit.saveItem(item) } }
     }
 
+    func moveItem(_ item: ListItem, to destination: OursSubcategory) {
+        // Remove from source and reindex
+        var sourceItems = itemsBySubcategory[item.subcategoryID] ?? []
+        sourceItems.removeAll { $0.id == item.id }
+        for i in sourceItems.indices { sourceItems[i].order = i }
+        itemsBySubcategory[item.subcategoryID] = sourceItems
+
+        // Update item with new subcategory and append order
+        var moved = item
+        moved.subcategoryID = destination.id
+        moved.order = (itemsBySubcategory[destination.id] ?? []).count
+        itemsBySubcategory[destination.id, default: []].append(moved)
+
+        Task {
+            _ = try? await cloudKit.saveItem(moved)
+            for i in sourceItems { _ = try? await cloudKit.saveItem(i) }
+        }
+    }
+
+    func parentSubcategory(of sub: OursSubcategory) -> OursSubcategory? {
+        guard let parentID = sub.parentSubcategoryID else { return nil }
+        return (subcategoriesByCategory[sub.categoryID] ?? []).first { $0.id == parentID }
+    }
+
     func updateSubcategoryOrder(_ id: UUID, in category: OursCategory, to newOrder: Int) {
         guard let idx = subcategoriesByCategory[category.id]?.firstIndex(where: { $0.id == id }) else { return }
         guard subcategoriesByCategory[category.id]?[idx].order != newOrder else { return }
