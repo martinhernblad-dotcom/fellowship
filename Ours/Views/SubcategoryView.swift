@@ -15,6 +15,7 @@ struct SubcategoryView: View {
     @State private var quickAddText: String = ""
     @FocusState private var quickAddFocused: Bool
     @State private var sortByStore: Bool = false
+    @State private var scrollProxy: ScrollViewProxy? = nil
     @Environment(\.openURL) private var openURL
 
     private var isShopping: Bool {
@@ -218,44 +219,55 @@ struct SubcategoryView: View {
     // MARK: - List
 
     private var listContent: some View {
-        List {
-            if let noteLabel = category.noteLabel {
-                Section {
-                    noteEditor
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                } header: {
-                    sectionHeader(noteLabel)
+        ScrollViewReader { proxy in
+            List {
+                if let noteLabel = category.noteLabel {
+                    Section {
+                        noteEditor
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    } header: {
+                        sectionHeader(noteLabel)
+                    }
                 }
-            }
 
-            if sortByStore && isShopping {
-                groupedByStoreSection
-            } else if !allRows.isEmpty {
-                ForEach(allRows) { row in
-                    rowView(for: row)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                Task { await deleteRow(row) }
-                            } label: {
-                                Label("Ta bort", systemImage: "trash")
+                if sortByStore && isShopping {
+                    groupedByStoreSection
+                } else if !allRows.isEmpty {
+                    ForEach(allRows) { row in
+                        rowView(for: row)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await deleteRow(row) }
+                                } label: {
+                                    Label("Ta bort", systemImage: "trash")
+                                }
+                                .tint(.red)
                             }
-                            .tint(.red)
-                        }
+                    }
+                    .onMove { from, to in
+                        handleMove(from: from, to: to)
+                    }
                 }
-                .onMove { from, to in
-                    handleMove(from: from, to: to)
-                }
+
+                // Invisible anchor — always at the bottom for auto-scroll after quick-add
+                Color.clear
+                    .frame(height: 1)
+                    .id("listBottom")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.immediately)
+            .environment(\.editMode, $editMode)
+            .onAppear { scrollProxy = proxy }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.immediately)
-        .environment(\.editMode, $editMode)
     }
 
     @ViewBuilder
@@ -613,6 +625,11 @@ struct SubcategoryView: View {
                 await viewModel.addItem(title: t, notes: "", url: "", to: subcategory)
             }
             quickAddFocused = true
+            // Brief pause for the list to render the new row, then scroll to it
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            withAnimation(.easeOut(duration: 0.25)) {
+                scrollProxy?.scrollTo("listBottom", anchor: .bottom)
+            }
         }
     }
 
