@@ -40,21 +40,10 @@ struct SubcategoryView: View {
     var body: some View {
         ZStack {
             Color.appBackground.ignoresSafeArea(.container)
-
-            VStack(spacing: 0) {
-                Group {
-                    if !isEmpty {
-                        listContent
-                    } else {
-                        emptyState
-                    }
-                }
-                .frame(maxHeight: .infinity)
-
-                if !isSelecting {
-                    quickAddBar
-                }
-            }
+            if !isEmpty { listContent } else { emptyState }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !isSelecting { quickAddBar }
         }
         .navigationTitle(subcategory.name)
         .navigationBarTitleDisplayMode(.large)
