@@ -45,6 +45,16 @@ struct SubcategoryView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isSelecting { quickAddBar }
         }
+        .onChange(of: quickAddFocused) { _, focused in
+            guard focused else { return }
+            // Keyboard is animating up (~0.25s) — scroll to bottom once it's in place
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                withAnimation(.easeOut(duration: 0.2)) {
+                    scrollProxy?.scrollTo("listBottom", anchor: .bottom)
+                }
+            }
+        }
         .navigationTitle(subcategory.name)
         .navigationBarTitleDisplayMode(.large)
         .fontDesign(.rounded)
