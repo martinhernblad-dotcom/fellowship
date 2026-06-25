@@ -4,6 +4,8 @@ struct CategoryView: View {
     let category: OursCategory
     @EnvironmentObject private var viewModel: AppViewModel
     @State private var showAddSheet = false
+    @State private var showAddCategorySheet = false
+    @State private var showRecipeChoice = false
     @State private var editMode: EditMode = .inactive
     @State private var subToRename: OursSubcategory? = nil
     @State private var renameText = ""
@@ -60,7 +62,13 @@ struct CategoryView: View {
                         }
                     }
                     if !isSelecting {
-                        Button { showAddSheet = true } label: {
+                        Button {
+                            if category.useTripView {
+                                showRecipeChoice = true
+                            } else {
+                                showAddSheet = true
+                            }
+                        } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white)
@@ -85,14 +93,17 @@ struct CategoryView: View {
                 }
             }
         }
+        .confirmationDialog("Lägg till", isPresented: $showRecipeChoice) {
+            Button("Importera recept") { showAddSheet = true }
+            Button("Ny kategori")     { showAddCategorySheet = true }
+        }
         .sheet(isPresented: $showAddSheet) {
-            if category.id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")! {
-                RecipeImportSheet(category: category)
-                    .environmentObject(viewModel)
-            } else {
-                AddSubcategorySheet(category: category)
-                    .environmentObject(viewModel)
-            }
+            RecipeImportSheet(category: category)
+                .environmentObject(viewModel)
+        }
+        .sheet(isPresented: $showAddCategorySheet) {
+            AddSubcategorySheet(category: category)
+                .environmentObject(viewModel)
         }
         .task { await viewModel.loadSubcategories(for: category) }
         .alert("Ändra namn", isPresented: Binding(
@@ -192,7 +203,9 @@ struct CategoryView: View {
                 .font(.body)
                 .foregroundColor(.white.opacity(0.35))
 
-            Button { showAddSheet = true } label: {
+            Button {
+                if category.useTripView { showRecipeChoice = true } else { showAddSheet = true }
+            } label: {
                 Label("Lägg till lista", systemImage: "plus")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
