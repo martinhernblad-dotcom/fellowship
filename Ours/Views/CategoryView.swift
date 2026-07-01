@@ -63,7 +63,7 @@ struct CategoryView: View {
                     }
                     if !isSelecting {
                         Button {
-                            if category.useTripView {
+                            if category.usesRecipeImport {
                                 showRecipeChoice = true
                             } else {
                                 showAddSheet = true
@@ -204,7 +204,7 @@ struct CategoryView: View {
                 .foregroundColor(.white.opacity(0.35))
 
             Button {
-                if category.useTripView { showRecipeChoice = true } else { showAddSheet = true }
+                if category.usesRecipeImport { showRecipeChoice = true } else { showAddSheet = true }
             } label: {
                 Label("Lägg till lista", systemImage: "plus")
                     .font(.system(size: 16, weight: .semibold))

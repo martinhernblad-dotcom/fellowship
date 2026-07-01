@@ -61,6 +61,11 @@ extension OursCategory {
         id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
     }
 
+    // Only Recept shows the recipe import / new category choice dialog
+    var usesRecipeImport: Bool {
+        id == UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
+    }
+
     // Recipes are atomic. Ekonomi has fixed sections per person. Everything else can nest.
     var allowsNestedSubcategories: Bool {
         let recept  = UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
