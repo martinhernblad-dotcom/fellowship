@@ -66,7 +66,7 @@ struct CategoryView: View {
                             if category.usesRecipeImport {
                                 showRecipeChoice = true
                             } else {
-                                showAddSheet = true
+                                showAddCategorySheet = true
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -204,7 +204,7 @@ struct CategoryView: View {
                 .foregroundColor(.white.opacity(0.35))
 
             Button {
-                if category.usesRecipeImport { showRecipeChoice = true } else { showAddSheet = true }
+                if category.usesRecipeImport { showRecipeChoice = true } else { showAddCategorySheet = true }
             } label: {
                 Label("Lägg till lista", systemImage: "plus")
                     .font(.system(size: 16, weight: .semibold))
