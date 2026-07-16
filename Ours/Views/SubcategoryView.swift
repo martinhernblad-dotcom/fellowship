@@ -561,28 +561,15 @@ struct SubcategoryView: View {
     // MARK: - Note editor card
 
     private var noteEditor: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $noteText)
-                .font(.system(size: 15, design: .rounded))
-                .foregroundColor(.white)
-                .scrollContentBackground(.hidden)
-                .frame(height: 160)
-                .onChange(of: noteText) { _, newVal in
-                    viewModel.updateNote(newVal, for: subcategory, in: category)
-                }
-
-            if noteText.isEmpty {
-                Text(category.notePlaceholder)
-                    .font(.system(size: 15, design: .rounded))
-                    .foregroundColor(.white.opacity(0.28))
-                    .padding(.top, 8)
-                    .padding(.leading, 5)
-                    .allowsHitTesting(false)
+        FormattableNoteEditor(text: $noteText,
+                              placeholder: category.notePlaceholder,
+                              fontSize: 15, height: 160)
+            .onChange(of: noteText) { _, newVal in
+                viewModel.updateNote(newVal, for: subcategory, in: category)
             }
-        }
-        .padding(14)
-        .background(Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+            .padding(14)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: - Quick-add bar (always visible at bottom)

@@ -319,23 +319,12 @@ struct NoteBlockCard: View {
             Divider().background(Color.white.opacity(0.07)).padding(.horizontal, 14)
 
             // Text body
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $text)
-                    .font(.system(size: 14, design: .rounded))
-                    .foregroundColor(.white.opacity(0.85))
-                    .scrollContentBackground(.hidden)
-                    .frame(height: 160)
-                    .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
-                if text.isEmpty {
-                    Text("Skriv anteckning…")
-                        .font(.system(size: 14, design: .rounded))
-                        .foregroundColor(.white.opacity(0.22))
-                        .padding(.top, 8).padding(.leading, 5)
-                        .allowsHitTesting(false)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            FormattableNoteEditor(text: $text,
+                                  placeholder: "Skriv anteckning…",
+                                  fontSize: 14, height: 160)
+                .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
         }
         .background(Color.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
