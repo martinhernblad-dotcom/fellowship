@@ -3,6 +3,7 @@ import UIKit
 
 struct RecipeImportSheet: View {
     let category: OursCategory
+    let parent: OursSubcategory?    // recipe group to create the recipe in, if any
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
 
@@ -15,8 +16,9 @@ struct RecipeImportSheet: View {
     @State private var showCameraPicker = false
     @State private var showLibraryPicker = false
 
-    init(category: OursCategory) {
+    init(category: OursCategory, parent: OursSubcategory? = nil) {
         self.category = category
+        self.parent = parent
         _selectedIcon = State(initialValue: category.suggestedIcons.first ?? "fork.knife")
     }
 
@@ -385,7 +387,7 @@ struct RecipeImportSheet: View {
         finalDraft.name = trimmedName
         finalDraft.iconHint = selectedIcon
         Task {
-            await viewModel.createRecipeFromDraft(finalDraft, in: category)
+            await viewModel.createRecipeFromDraft(finalDraft, in: category, parent: parent)
             dismiss()
         }
     }

@@ -3,6 +3,7 @@ import SwiftUI
 struct AddSubcategorySheet: View {
     let category: OursCategory
     let parent: OursSubcategory?
+    let asGroup: Bool   // create a recipe group (folder) instead of a list/recipe
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
 
@@ -11,17 +12,23 @@ struct AddSubcategorySheet: View {
     @State private var selectedIcon: String
     @State private var isSaving     = false
 
-    init(category: OursCategory, parent: OursSubcategory? = nil) {
+    init(category: OursCategory, parent: OursSubcategory? = nil, asGroup: Bool = false) {
         self.category = category
         self.parent = parent
+        self.asGroup = asGroup
         _selectedIcon = State(initialValue: category.suggestedIcons.first ?? "folder.fill")
     }
 
     private var navTitle: String {
+        if asGroup { return "Ny kategori" }
         if let parent {
             return "Kategori i \(parent.name)"
         }
         return category.addListTitle
+    }
+
+    private var namePrompt: String {
+        asGroup ? "T.ex. Pasta, Vego, Efterrätter…" : category.namePrompt
     }
 
     private var accent: Color { Color(hex: category.colorHex1) }
@@ -35,7 +42,7 @@ struct AddSubcategorySheet: View {
                     VStack(alignment: .leading, spacing: 24) {
                         field(label: "NAMN") {
                             TextField("", text: $name,
-                                      prompt: Text(category.namePrompt).foregroundColor(.white.opacity(0.3)))
+                                      prompt: Text(namePrompt).foregroundColor(.white.opacity(0.3)))
                                 .font(.system(size: 17))
                                 .foregroundColor(.white)
                                 .padding(14)
@@ -43,7 +50,7 @@ struct AddSubcategorySheet: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
 
-                        if let noteLabel = category.noteLabel {
+                        if !asGroup, let noteLabel = category.noteLabel {
                             field(label: noteLabel.uppercased()) {
                                 ZStack(alignment: .topLeading) {
                                     TextEditor(text: $noteText)
@@ -96,6 +103,7 @@ struct AddSubcategorySheet: View {
                                     iconName: selectedIcon,
                                     note: noteText,
                                     parentSubcategoryID: parent?.id,
+                                    isGroup: asGroup,
                                     to: category
                                 )
                                 dismiss()

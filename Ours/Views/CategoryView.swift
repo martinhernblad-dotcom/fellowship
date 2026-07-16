@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CategoryView: View {
     let category: OursCategory
+    var parent: OursSubcategory? = nil   // non-nil when browsing inside a recipe group
     @EnvironmentObject private var viewModel: AppViewModel
     @State private var showAddSheet = false
     @State private var showAddCategorySheet = false
@@ -14,7 +15,25 @@ struct CategoryView: View {
 
     private var subcategories: [OursSubcategory] {
         (viewModel.subcategoriesByCategory[category.id] ?? [])
-            .filter { $0.parentSubcategoryID == nil }
+            .filter { $0.parentSubcategoryID == parent?.id }
+    }
+
+    private func recipeCount(in group: OursSubcategory) -> Int {
+        (viewModel.subcategoriesByCategory[category.id] ?? [])
+            .filter { $0.parentSubcategoryID == group.id }.count
+    }
+
+    // What the plus button does depends on where we are:
+    // - Recept top level: choose between new recipe and new category (group)
+    // - inside a recipe group: recipes only
+    // - everywhere else: the normal new-list sheet
+    private func addTapped() {
+        if category.usesRecipeImport {
+            if parent == nil { showRecipeChoice = true }
+            else             { showAddSheet = true }
+        } else {
+            showAddCategorySheet = true
+        }
     }
 
     var body: some View {
@@ -29,7 +48,7 @@ struct CategoryView: View {
                 }
             }
         }
-        .navigationTitle(category.name)
+        .navigationTitle(parent?.name ?? category.name)
         .navigationBarTitleDisplayMode(.large)
         .fontDesign(.rounded)
         .toolbar {
@@ -63,11 +82,7 @@ struct CategoryView: View {
                     }
                     if !isSelecting {
                         Button {
-                            if category.usesRecipeImport {
-                                showRecipeChoice = true
-                            } else {
-                                showAddCategorySheet = true
-                            }
+                            addTapped()
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 18, weight: .medium))
@@ -81,9 +96,7 @@ struct CategoryView: View {
                     Button(role: .destructive) {
                         let toDelete = subcategories.filter { selectedIDs.contains($0.id) }
                         Task {
-                            for sub in toDelete {
-                                await viewModel.deleteSubcategory(sub, from: category)
-                            }
+                            await viewModel.deleteSubcategories(toDelete, from: category)
                         }
                         withAnimation { isSelecting = false; selectedIDs = [] }
                     } label: {
@@ -94,15 +107,16 @@ struct CategoryView: View {
             }
         }
         .confirmationDialog("Lägg till", isPresented: $showRecipeChoice) {
-            Button("Importera recept") { showAddSheet = true }
-            Button("Ny kategori")     { showAddCategorySheet = true }
+            Button("Nytt recept")  { showAddSheet = true }
+            Button("Ny kategori")  { showAddCategorySheet = true }
         }
         .sheet(isPresented: $showAddSheet) {
-            RecipeImportSheet(category: category)
+            RecipeImportSheet(category: category, parent: parent)
                 .environmentObject(viewModel)
         }
         .sheet(isPresented: $showAddCategorySheet) {
-            AddSubcategorySheet(category: category)
+            AddSubcategorySheet(category: category, parent: parent,
+                                asGroup: category.usesRecipeImport)
                 .environmentObject(viewModel)
         }
         .task { await viewModel.loadSubcategories(for: category) }
@@ -150,13 +164,16 @@ struct CategoryView: View {
                             }
                     } else {
                         NavigationLink {
-                            if category.useTripView {
+                            if sub.isGroup {
+                                CategoryView(category: category, parent: sub)
+                            } else if category.useTripView {
                                 TripDetailView(trip: sub, category: category)
                             } else {
                                 SubcategoryView(subcategory: sub, category: category)
                             }
                         } label: {
-                            SubcategoryRow(subcategory: sub, category: category)
+                            SubcategoryRow(subcategory: sub, category: category,
+                                           groupCount: sub.isGroup ? recipeCount(in: sub) : nil)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -179,7 +196,8 @@ struct CategoryView: View {
                 .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
             }
             .onMove { from, to in
-                viewModel.moveSubcategory(in: category, fromOffsets: from, toOffset: to)
+                viewModel.moveSubcategory(in: category, parentID: parent?.id,
+                                          fromOffsets: from, toOffset: to)
             }
         }
         .listStyle(.plain)
@@ -195,18 +213,21 @@ struct CategoryView: View {
                 .font(.system(size: 52))
                 .foregroundColor(Color(hex: category.colorHex1).opacity(0.5))
 
-            Text("Inga listor än")
+            Text(category.usesRecipeImport ? "Inga recept än" : "Inga listor än")
                 .font(.title3.bold())
                 .foregroundColor(.white.opacity(0.8))
 
-            Text("Tryck + för att skapa din första lista")
+            Text(category.usesRecipeImport
+                 ? "Tryck + för att lägga till ett recept"
+                 : "Tryck + för att skapa din första lista")
                 .font(.body)
                 .foregroundColor(.white.opacity(0.35))
 
             Button {
-                if category.usesRecipeImport { showRecipeChoice = true } else { showAddCategorySheet = true }
+                addTapped()
             } label: {
-                Label("Lägg till lista", systemImage: "plus")
+                Label(category.usesRecipeImport ? "Lägg till recept" : "Lägg till lista",
+                      systemImage: "plus")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 28)
@@ -230,6 +251,7 @@ struct CategoryView: View {
 struct SubcategoryRow: View {
     let subcategory: OursSubcategory
     let category: OursCategory
+    var groupCount: Int? = nil   // shown for recipe groups: count + chevron
 
     var body: some View {
         HStack(spacing: 14) {
@@ -253,6 +275,15 @@ struct SubcategoryRow: View {
                 .foregroundColor(.white)
 
             Spacer()
+
+            if let groupCount {
+                Text("\(groupCount)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.35))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.25))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

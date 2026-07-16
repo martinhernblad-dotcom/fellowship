@@ -32,6 +32,7 @@ struct FellowshipApp: App {
                     ProfileSetupView()
                 }
             }
+            .overlay(alignment: .bottom) { UndoToast() }
             .environmentObject(viewModel)
             .preferredColorScheme(.dark)
         }

@@ -15,6 +15,19 @@ final class AppViewModel: ObservableObject {
     @Published var coupleID:               String?
     @Published var isSyncing:              Bool                        = false
     @Published var lastSyncDate:           Date?
+    @Published var undoSnapshot:           DeletedSnapshot?
+
+    // Everything needed to restore the most recent deletion, kept for a short window.
+    struct DeletedSnapshot: Equatable {
+        struct PhotoFile: Equatable { let filename: String; let data: Data }
+        let label: String
+        let subcategories: [OursSubcategory]
+        let items: [ListItem]
+        let blocks: [TripBlock]
+        let checkItems: [TripCheckItem]
+        let photoFiles: [PhotoFile]
+    }
+    private var undoExpiryTask: Task<Void, Never>?
 
     let cloudKit = CloudKitService()
 
@@ -194,6 +207,7 @@ final class AppViewModel: ObservableObject {
 
     func addSubcategory(name: String, iconName: String, note: String = "",
                         parentSubcategoryID: UUID? = nil,
+                        isGroup: Bool = false,
                         to category: OursCategory) async {
         let siblings = (subcategoriesByCategory[category.id] ?? [])
             .filter { $0.parentSubcategoryID == parentSubcategoryID }
@@ -202,7 +216,8 @@ final class AppViewModel: ObservableObject {
         let order = siblings.count + parentItems + parentBlocks
         let sub = OursSubcategory(name: name, iconName: iconName, order: order,
                                   categoryID: category.id, note: note,
-                                  parentSubcategoryID: parentSubcategoryID)
+                                  parentSubcategoryID: parentSubcategoryID,
+                                  isGroup: isGroup)
         subcategoriesByCategory[category.id, default: []].append(sub)
         _ = try? await cloudKit.saveSubcategory(sub)
     }
@@ -241,6 +256,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func deleteSubcategory(_ sub: OursSubcategory, from category: OursCategory) async {
+        let snapshot = snapshotForSubcategories([sub], label: "\(sub.name) borttagen")
         let store = LocalStore.shared
         let descendants = store.descendantSubcategoryIDs(of: sub.id)
         let allIDs = Set([sub.id] + descendants)
@@ -251,6 +267,26 @@ final class AppViewModel: ObservableObject {
         try? await cloudKit.deleteSubcategory(sub)
         subcategoriesByCategory[category.id]?.removeAll { $0.id == sub.id }
         itemsBySubcategory.removeValue(forKey: sub.id)
+        offerUndo(snapshot)
+    }
+
+    // Bulk delete with a single combined undo (used by multi-select).
+    func deleteSubcategories(_ subs: [OursSubcategory], from category: OursCategory) async {
+        guard !subs.isEmpty else { return }
+        let label = subs.count == 1 ? "\(subs[0].name) borttagen" : "\(subs.count) borttagna"
+        let snapshot = snapshotForSubcategories(subs, label: label)
+        let store = LocalStore.shared
+        for sub in subs {
+            let allIDs = Set([sub.id] + store.descendantSubcategoryIDs(of: sub.id))
+            let photoBlocks = store.tripBlocks.filter {
+                allIDs.contains($0.tripID) && $0.type == .photos
+            }
+            for block in photoBlocks { deletePhotoBlobs(in: block) }
+            try? await cloudKit.deleteSubcategory(sub)
+            subcategoriesByCategory[category.id]?.removeAll { $0.id == sub.id }
+            itemsBySubcategory.removeValue(forKey: sub.id)
+        }
+        offerUndo(snapshot)
     }
 
     func renameSubcategory(_ sub: OursSubcategory, to name: String, in category: OursCategory) {
@@ -275,6 +311,86 @@ final class AppViewModel: ObservableObject {
         }
         subcategoriesByCategory[category.id] = allSubs
         Task { for s in siblings { _ = try? await cloudKit.saveSubcategory(s) } }
+    }
+
+    // MARK: - Undo (ångra)
+
+    private func snapshotForSubcategories(_ subs: [OursSubcategory], label: String) -> DeletedSnapshot {
+        let store = LocalStore.shared
+        var allIDs = Set<UUID>()
+        for sub in subs {
+            allIDs.insert(sub.id)
+            allIDs.formUnion(store.descendantSubcategoryIDs(of: sub.id))
+        }
+        let subcategories = store.subcategories.filter { allIDs.contains($0.id) }
+        let items         = store.items.filter { allIDs.contains($0.subcategoryID) }
+        let blocks        = store.tripBlocks.filter { allIDs.contains($0.tripID) }
+        let blockIDs      = Set(blocks.map(\.id))
+        let checkItems    = store.tripCheckItems.filter { blockIDs.contains($0.blockID) }
+        return DeletedSnapshot(label: label,
+                               subcategories: subcategories, items: items,
+                               blocks: blocks, checkItems: checkItems,
+                               photoFiles: capturePhotoFiles(for: blocks))
+    }
+
+    private func capturePhotoFiles(for blocks: [TripBlock]) -> [DeletedSnapshot.PhotoFile] {
+        let dir = photosDirectory()
+        return blocks
+            .filter { $0.type == .photos }
+            .flatMap { block -> [DeletedSnapshot.PhotoFile] in
+                guard let names = try? JSONDecoder().decode([String].self, from: Data(block.text.utf8))
+                else { return [] }
+                return names.compactMap { name in
+                    (try? Data(contentsOf: dir.appendingPathComponent(name)))
+                        .map { DeletedSnapshot.PhotoFile(filename: name, data: $0) }
+                }
+            }
+    }
+
+    private func offerUndo(_ snapshot: DeletedSnapshot) {
+        undoExpiryTask?.cancel()
+        withAnimation(.spring(duration: 0.3)) { undoSnapshot = snapshot }
+        undoExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { self?.undoSnapshot = nil }
+        }
+    }
+
+    func undoLastDelete() async {
+        guard let snap = undoSnapshot else { return }
+        undoExpiryTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { undoSnapshot = nil }
+
+        // Clear tombstones first so a concurrent sync can't re-delete what we restore.
+        for s in snap.subcategories { cloudKit.removeTombstone("subcategories",  id: s.id.uuidString) }
+        for i in snap.items         { cloudKit.removeTombstone("items",          id: i.id.uuidString) }
+        for b in snap.blocks        { cloudKit.removeTombstone("tripBlocks",     id: b.id.uuidString) }
+        for c in snap.checkItems    { cloudKit.removeTombstone("tripCheckItems", id: c.id.uuidString) }
+
+        // Restore photo files locally and re-upload their blobs.
+        let dir = photosDirectory()
+        for photo in snap.photoFiles {
+            try? photo.data.write(to: dir.appendingPathComponent(photo.filename), options: .atomic)
+            if let cid = cloudKit.coupleID {
+                let base64 = photo.data.base64EncodedString()
+                let filename = photo.filename
+                Task.detached {
+                    _ = try? await Firestore.firestore()
+                        .collection("couples").document(cid)
+                        .collection("photoBlobs").document(filename)
+                        .setData(["data": base64])
+                }
+            }
+        }
+
+        // Re-save entities: merges into the local store and pushes to Firestore.
+        for s in snap.subcategories { _ = try? await cloudKit.saveSubcategory(s) }
+        for i in snap.items         { _ = try? await cloudKit.saveItem(i) }
+        for b in snap.blocks        { _ = try? await cloudKit.saveBlock(b) }
+        for c in snap.checkItems    { _ = try? await cloudKit.saveCheckItem(c) }
+
+        refreshFromStore()
     }
 
     // MARK: - Item CRUD
@@ -303,6 +419,9 @@ final class AppViewModel: ObservableObject {
     func deleteItem(_ item: ListItem, from sub: OursSubcategory) async {
         try? await cloudKit.deleteItem(item)
         itemsBySubcategory[sub.id]?.removeAll { $0.id == item.id }
+        offerUndo(DeletedSnapshot(label: "\(item.title) borttagen",
+                                  subcategories: [], items: [item],
+                                  blocks: [], checkItems: [], photoFiles: []))
     }
 
     func renameItem(_ item: ListItem, to name: String, in sub: OursSubcategory) {
@@ -640,10 +759,17 @@ Månadsspar: 7000
     }
 
     func deleteBlock(_ block: TripBlock) async {
+        let checkItems = LocalStore.shared.tripCheckItems.filter { $0.blockID == block.id }
+        let label = block.title.isEmpty ? "Block borttaget" : "\(block.title) borttagen"
+        let snapshot = DeletedSnapshot(label: label,
+                                       subcategories: [], items: [],
+                                       blocks: [block], checkItems: checkItems,
+                                       photoFiles: capturePhotoFiles(for: [block]))
         deletePhotoBlobs(in: block)
         try? await cloudKit.deleteBlock(block)
         blocksByTrip[block.tripID]?.removeAll { $0.id == block.id }
         checkItemsByBlock.removeValue(forKey: block.id)
+        offerUndo(snapshot)
     }
 
     private func deletePhotoBlobs(in block: TripBlock) {
@@ -719,6 +845,9 @@ Månadsspar: 7000
     func deleteCheckItem(_ item: TripCheckItem) async {
         try? await cloudKit.deleteCheckItem(item)
         checkItemsByBlock[item.blockID]?.removeAll { $0.id == item.id }
+        offerUndo(DeletedSnapshot(label: "\(item.title) borttagen",
+                                  subcategories: [], items: [],
+                                  blocks: [], checkItems: [item], photoFiles: []))
     }
 
     private var checkItemSaveTasks: [UUID: Task<Void, Never>] = [:]
@@ -738,12 +867,15 @@ Månadsspar: 7000
     // MARK: - Recipe import
 
     @discardableResult
-    func createRecipeFromDraft(_ draft: RecipeDraft, in category: OursCategory) async -> OursSubcategory? {
-        let order = subcategoriesByCategory[category.id]?.count ?? 0
+    func createRecipeFromDraft(_ draft: RecipeDraft, in category: OursCategory,
+                               parent: OursSubcategory? = nil) async -> OursSubcategory? {
+        let order = (subcategoriesByCategory[category.id] ?? [])
+            .filter { $0.parentSubcategoryID == parent?.id }.count
         let icon = draft.iconHint ?? category.suggestedIcons.first ?? "fork.knife"
         let sub = OursSubcategory(
             name: draft.name, iconName: icon, order: order,
-            categoryID: category.id, note: ""
+            categoryID: category.id, note: "",
+            parentSubcategoryID: parent?.id
         )
         subcategoriesByCategory[category.id, default: []].append(sub)
         _ = try? await cloudKit.saveSubcategory(sub)

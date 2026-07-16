@@ -305,6 +305,16 @@ final class CloudKitService {
                 .collection("deletions").document(docID).setData(data)
         }
     }
+
+    // Undo support: clear the tombstone so a restored entity isn't re-deleted on next sync.
+    func removeTombstone(_ collection: String, id: String) {
+        guard let cid = coupleID else { return }
+        let docID = "\(collection)_\(id)"
+        Task {
+            try? await db.collection("couples").document(cid)
+                .collection("deletions").document(docID).delete()
+        }
+    }
 }
 
 // MARK: - Firestore mapping
@@ -317,6 +327,7 @@ private extension OursSubcategory {
             "portions": portions
         ]
         if let p = parentSubcategoryID { d["parentSubcategoryID"] = p.uuidString }
+        if isGroup { d["isGroup"] = true }
         return d
     }
     init?(fs d: [String: Any]) {
@@ -329,6 +340,7 @@ private extension OursSubcategory {
         self.order    = d["order"]    as? Int    ?? 0
         self.note     = d["note"]     as? String ?? ""
         self.portions = d["portions"] as? Int    ?? 1
+        self.isGroup  = d["isGroup"]  as? Bool   ?? false
         if let pStr = d["parentSubcategoryID"] as? String, let pID = UUID(uuidString: pStr) {
             self.parentSubcategoryID = pID
         } else {

@@ -160,19 +160,22 @@ struct OursSubcategory: Identifiable, Hashable, Codable {
     var note: String    // instructions for recipes, trip notes for travel
     var parentSubcategoryID: UUID?
     var portions: Int   // recipe servings indicator (1 for non-recipes)
+    var isGroup: Bool   // Recept: a folder that holds recipes, not a recipe itself
 
     init(id: UUID = UUID(), name: String, iconName: String = "folder.fill",
          order: Int = 0, categoryID: UUID, note: String = "",
          parentSubcategoryID: UUID? = nil,
-         portions: Int = 1) {
+         portions: Int = 1,
+         isGroup: Bool = false) {
         self.id = id; self.name = name; self.iconName = iconName
         self.order = order; self.categoryID = categoryID; self.note = note
         self.parentSubcategoryID = parentSubcategoryID
         self.portions = portions
+        self.isGroup = isGroup
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, iconName, order, categoryID, note, parentSubcategoryID, portions
+        case id, name, iconName, order, categoryID, note, parentSubcategoryID, portions, isGroup
     }
 
     init(from decoder: Decoder) throws {
@@ -185,6 +188,7 @@ struct OursSubcategory: Identifiable, Hashable, Codable {
         note       = (try? c.decode(String.self, forKey: .note)) ?? ""
         parentSubcategoryID = try? c.decode(UUID.self, forKey: .parentSubcategoryID)
         portions   = (try? c.decode(Int.self, forKey: .portions)) ?? 1
+        isGroup    = (try? c.decode(Bool.self, forKey: .isGroup)) ?? false
     }
 }
 
