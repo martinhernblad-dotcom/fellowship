@@ -1226,7 +1226,7 @@ struct BudgetBlockCard: View {
     // ── Helpers ──────────────────────────────────────────────────────────────
     private func formatKr(_ value: Double) -> String {
         let n = Int(value.rounded())
-        var result = ""; var s = String(n)
+        var result = ""; let s = String(n)
         for (i, c) in s.reversed().enumerated() {
             if i > 0 && i % 3 == 0 { result = " " + result }
             result = String(c) + result
