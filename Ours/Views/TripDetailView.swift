@@ -1348,7 +1348,7 @@ struct MonthlyCostsBlockCard: View {
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(.white.opacity(0.3))
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 60, maxHeight: 300)
+                    .frame(height: 180)
                     .onChange(of: text) { _, v in viewModel.updateBlockText(v, for: block) }
                 if text.isEmpty {
                     Text("Klistra in text här…")

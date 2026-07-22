@@ -341,7 +341,7 @@ struct RecipeImportSheet: View {
                 .font(.system(size: 15))
                 .foregroundColor(.white)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 140, maxHeight: 360)
+                .frame(height: 220)
             if draft.instructions.isEmpty {
                 Text(category.notePlaceholder)
                     .font(.system(size: 15))
