@@ -178,13 +178,75 @@ private struct RichNoteEditor: UIViewRepresentable {
         let parent: RichNoteEditor
         weak var textView: UITextView?
         var lastMarkdown = ""
+        private var keyboardFrame: CGRect = .zero
+        private var keyboardObserver: NSObjectProtocol?
 
-        init(_ parent: RichNoteEditor) { self.parent = parent }
+        init(_ parent: RichNoteEditor) {
+            self.parent = parent
+            super.init()
+            keyboardObserver = NotificationCenter.default.addObserver(
+                forName: UIResponder.keyboardWillChangeFrameNotification,
+                object: nil, queue: .main
+            ) { [weak self] note in
+                if let f = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                    self?.keyboardFrame = f
+                }
+            }
+        }
+
+        deinit {
+            if let keyboardObserver { NotificationCenter.default.removeObserver(keyboardObserver) }
+        }
 
         func textViewDidChange(_ tv: UITextView) {
             let md = NoteMarkdown.render(NoteFormat.lines(from: tv.attributedText))
             lastMarkdown = md
             parent.markdown = md
+            // Keep the caret visible inside the editor while typing.
+            tv.scrollRangeToVisible(tv.selectedRange)
+        }
+
+        // MARK: Keyboard avoidance
+        //
+        // SwiftUI's automatic keyboard avoidance only tracks SwiftUI focus, not
+        // UIKit first responders — so we scroll the enclosing List ourselves
+        // when editing starts, after the keyboard has raised the safe area.
+
+        func textViewDidBeginEditing(_ tv: UITextView) {
+            scrollCardAboveKeyboard(tv, delay: 0.4)
+        }
+
+        private func scrollCardAboveKeyboard(_ tv: UITextView, delay: TimeInterval) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak tv] in
+                guard let self, let tv, tv.isFirstResponder else { return }
+                // Outermost enclosing scroll view = the List's collection view.
+                var view: UIView? = tv.superview
+                var outer: UIScrollView?
+                while let current = view {
+                    if let sv = current as? UIScrollView { outer = sv }
+                    view = current.superview
+                }
+                guard let scrollView = outer else { return }
+
+                // How much of the scroll view the keyboard (incl. toolbar) covers.
+                // scrollRectToVisible alone treats the area under the keyboard as
+                // visible, so compute the overlap and scroll manually.
+                let kbInView = scrollView.convert(self.keyboardFrame, from: nil)
+                let kbOverlap = max(0, scrollView.bounds.maxY - kbInView.minY)
+                let bottomInset = max(scrollView.adjustedContentInset.bottom, kbOverlap)
+                let topInset = scrollView.adjustedContentInset.top
+
+                let rect = tv.convert(tv.bounds, to: scrollView).insetBy(dx: 0, dy: -24)
+                let visibleTop = scrollView.contentOffset.y + topInset
+                let visibleBottom = scrollView.contentOffset.y + scrollView.bounds.height - bottomInset
+
+                if rect.maxY > visibleBottom {
+                    let target = rect.maxY - (scrollView.bounds.height - bottomInset)
+                    scrollView.setContentOffset(CGPoint(x: 0, y: max(target, -topInset)), animated: true)
+                } else if rect.minY < visibleTop {
+                    scrollView.setContentOffset(CGPoint(x: 0, y: max(rect.minY - topInset, -topInset)), animated: true)
+                }
+            }
         }
 
         // MARK: Toolbar
